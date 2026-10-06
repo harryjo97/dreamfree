@@ -1,0 +1,15 @@
+simulator_root: ${oc.env:ROBOTWIN_ROOT}
+output_dir: ./outputs/evaluation/robotwin
+task_name: null
+task_config: demo_randomized
+ckpt_setting: null
+dataset_stats_path: null
+model_base_path: ./assets/models
+seed: 42
+eval_num_episodes: 100
+instruction_type: unseen
+device: cuda
+mixed_precision: bf16
+replan_steps: 8
+num_inference_steps: 10
+load_text_encoder: true

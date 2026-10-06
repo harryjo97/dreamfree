@@ -1,0 +1,55 @@
+ckpt: null
+gpu_id: 0
+seed: 42
+mixed_precision: bf16
+eval_num_inference_steps: 10
+model:
+  load_text_encoder: true
+data:
+  train:
+    num_frames: 33
+    video_size:
+    - 352
+    - 352
+    concat_multi_camera: robocasa_dreamzero_352
+EVALUATION:
+  task_name: TurnOffMicrowave
+  num_trials: 50
+  episode_start_idx: 0
+  output_dir: ./outputs/evaluation
+  output_namespace: robocasa_dreamfree
+  run_ts: null
+  robocasa_root: ${oc.env:ROBOCASA_ROOT}
+  controller_configs_path: ${oc.env:ROBOCASA_CONTROLLER_CONFIG}
+  env_img_res: 224
+  robots: PandaMobile
+  controllers: OSC_POSE
+  obj_instance_split: B
+  layout_and_style_ids: ((1,1),(2,2),(4,4),(6,9),(7,10))
+  randomize_cameras: false
+  flip_images: true
+  deterministic: true
+  deterministic_reset: false
+  deterministic_reset_seed: null
+  seed: 195
+  num_steps_wait: 10
+  initial_state_validation: true
+  initial_state_max_reset_attempts: 5
+  max_steps_override: null
+  policy_runtime: dreamfree_stage2_student_native
+  stage1_checkpoint: null
+  action_horizon: null
+  replan_steps: 10
+  num_inference_steps: 10
+  rand_device: cpu
+  tiled: false
+  timing_enabled: false
+  compile_dit: true
+  inference_optimization: 'true'
+  action_cuda_graph: auto
+  vae_first_frame_only: auto
+  stage1_cuda_graph: auto
+  save_videos: true
+  text_embedding_cache_dir: null
+  dataset_stats_path: null
+  device: cuda

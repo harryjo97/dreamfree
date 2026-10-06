@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+import re
+
+import torch
+
+from dreamfree.training.stage0.constants import (
+    DROID_CAMERA_KEYS,
+    DROID_GRID_CONCAT_MULTI_CAMERA,
+    DROID_GRID_HEIGHT,
+    DROID_GRID_WIDTH,
+)
+from dreamfree.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+ScalarMetric = torch.Tensor | float | int
+STAGE1_CHECKPOINT_TYPE = "dreamfree_stage1"
+STAGE1_STUDENT_SOURCE_CHECKPOINT_TYPES = frozenset((STAGE1_CHECKPOINT_TYPE,))
+STAGE1_CHECKPOINT_VERSION = 2
+STAGE1_CHECKPOINT_DIR_RE = re.compile("^step_(\\d+)$")
+STAGE1_REQUIRED_STUDENT_FILES = ("trainer_state.json", "stage1_lora.safetensors")
+WAN22_A14B_DIT_ROLES = frozenset(("low_noise", "high_noise"))
+TEACHER_TARGET_TOKEN_SCOPE_ALL = "all"
+TEACHER_TARGET_TOKEN_SCOPE_FUTURE = "future"
+TEACHER_TARGET_TOKEN_SCOPES = frozenset(
+    (TEACHER_TARGET_TOKEN_SCOPE_ALL, TEACHER_TARGET_TOKEN_SCOPE_FUTURE)
+)
+STUDENT_SIGMA_SOURCE_UNUSED = "unused"
+STUDENT_SIGMA_SOURCE_CONFIG_OVERRIDE = "config_override"
+STUDENT_SIGMA_SOURCE_STAGE0_CHECKPOINT = "stage0_checkpoint"
+STUDENT_SIGMA_POLICY_WAN_SHIFT_FULL = "wan_shift_full"
+STUDENT_SIGMA_POLICY_WAN_SHIFT_RANGE = "wan_shift_range"
+STUDENT_SIGMA_POLICY_UNIFORM_RANGE = "uniform_range"
+STUDENT_SIGMA_POLICIES = frozenset(
+    (
+        STUDENT_SIGMA_POLICY_WAN_SHIFT_FULL,
+        STUDENT_SIGMA_POLICY_WAN_SHIFT_RANGE,
+        STUDENT_SIGMA_POLICY_UNIFORM_RANGE,
+    )
+)
+ROBOCASA_STAGE1_448_DATASET_ALIASES = frozenset(("robocasa_cosmos_success_448",))
+ROBOCASA_STAGE1_CAMERA_KEYS = (
+    "observation.images.agentview_left",
+    "observation.images.agentview_right",
+    "observation.images.wrist",
+)
+ROBOCASA_STAGE1_CONCAT_MULTI_CAMERA = "robocasa_dreamzero_352"
+ROBOCASA_STAGE1_HEIGHT = 352
+ROBOCASA_STAGE1_WIDTH = 352
+ROBOCASA_STAGE1_448_CONCAT_MULTI_CAMERA = "robocasa_dreamzero_448"
+ROBOCASA_STAGE1_448_HEIGHT = 448
+ROBOCASA_STAGE1_448_WIDTH = 448
+DROID_STAGE1_CAMERA_KEYS = DROID_CAMERA_KEYS
+DROID_STAGE1_CONCAT_MULTI_CAMERA = DROID_GRID_CONCAT_MULTI_CAMERA
+DROID_STAGE1_HEIGHT = DROID_GRID_HEIGHT
+DROID_STAGE1_WIDTH = DROID_GRID_WIDTH
+LIBERO_STAGE1_DATASET_NAMES = {"libero"}

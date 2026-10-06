@@ -1,0 +1,7 @@
+model: 14b
+dataset: robotwin
+data_mode: live
+dataset_dirs: ""
+text_embedding_cache_dir: ""
+model_base_path: ./assets/models
+output_dir: ./outputs/stage0_robotwin_14b

@@ -46,19 +46,20 @@
     </section>
 
     <section class="section container" id="overview" aria-labelledby="overview-title">
-      <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2><p>Skipping video generation makes inference fast.<br>Making stronger video priors useful for control is the next challenge.</p></div>
+      <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2><p>Skipping video generation enables fast inference. It also avoids reliance on potentially inaccurate video predictions.<br>Making stronger video priors useful for control is the next challenge.</p></div>
       <figure class="paper-figure concept-comparison">
-        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future frames; Fast-WAM uses one visual forward pass with weight-shared representations; DreamFree explicitly aligns current-frame representations with future-aware teacher features while preserving imagination-free inference."></button>
+        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future videos; Fast-WAM co-trains video denoising and action prediction but omits video generation at inference; DreamFree explicitly guides the shared features used for action prediction to capture future information."></button>
         <figcaption class="concept-caption">
-          <div><h3>Joint WAMs</h3><p>Use video priors directly through <strong>future-video generation</strong>. Iterative denoising is costly, and errors in predicted futures can lead to inaccurate actions.</p></div>
-          <div><h3>Fast-WAM</h3><p>Retains video co-training but skips video generation at inference. Predictive knowledge transfers <strong>implicitly through shared weights</strong>, without directly aligning current-frame features to future-aware representations.</p></div>
-          <div><h3><span class="method-name">DreamFree</span></h3><p>Adds <strong>explicit future representation alignment</strong> to video generative training. Current-frame features learn from a frozen teacher that sees the future, then support actions without generating it.</p></div>
+          <div><h3>Joint WAMs</h3><p>Use video generative priors directly through <strong>future-video generation</strong>. Iterative denoising is costly, and errors in predicted futures can lead to inaccurate actions.</p></div>
+          <div><h3>Fast-WAM</h3><p>Co-trains video denoising and action prediction, then predicts actions without generating future videos. Yet <strong>denoising videos well does not guarantee that the shared features used for action prediction capture future information.</strong></p></div>
+          <div><h3><span class="method-name">DreamFree</span></h3><p><strong>Explicitly guides the shared features used for action prediction to capture the video diffusion model’s predictive priors.</strong> Future representation distillation aligns these features with a frozen teacher that observes the future.</p></div>
         </figcaption>
       </figure>
       <div class="alignment-insight">
-        <h3>Shared weights alone do not guarantee predictive features.</h3>
-        <p>In our RoboCasa evaluation, scaling Fast-WAM from 5B to 14B barely changes success (<strong>44.4 → 44.7%</strong>). A stronger video generator does not automatically make current-frame features more useful for actions. <span class="method-name">DreamFree</span> directly supervises these features with <strong>future representation distillation</strong>, enabling the same backbone scaling to improve success from <strong>58.5 → 71.7%</strong>.</p>
-        <p class="pretraining-note"><span class="method-name">DreamFree</span> achieves these gains <strong>without cross-embodiment pre-training.</strong></p>
+        <h3>Making video priors useful without generating future videos.</h3>
+        <p>In imagination-free WAMs, actions are predicted without generating future videos. Denoising videos well during co-training does not guarantee that <strong>the shared features used for action prediction capture future information.</strong></p>
+        <p><span class="method-name">DreamFree</span> uses <strong>future representation distillation</strong> to explicitly guide these features to capture the video diffusion model’s predictive priors. In our RoboCasa evaluation, scaling the backbone from 5B to 14B raises DreamFree’s success from <strong>58.5% to 71.7%</strong>, while Fast-WAM changes only from <strong>44.4% to 44.7%</strong>.</p>
+        <p class="pretraining-note"><span class="method-name">DreamFree</span> achieves these gains <strong>without embodied pre-training.</strong></p>
       </div>
       <div class="deployment-evidence">
         <div class="deployment-story">

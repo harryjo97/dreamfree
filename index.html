@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DreamFree scales imagination-free World Action Models to DROID with a 14B video diffusion backbone. WAM-like training, VLA-like inference: strong video priors and 11Hz real-time control on a single GPU.">
+  <meta name="theme-color" content="#ffffff">
+  <title>DreamFree — Future Representation Distillation for World Action Models</title>
+  <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="content.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav container" aria-label="Main navigation">
+      <a class="wordmark" href="#top"><span class="method-name">DreamFree</span></a>
+      <div class="nav-links"><a href="#overview">Overview</a><a href="#method">Method</a><a href="#results">Results</a><a href="#examples">Videos <span aria-hidden="true">↗</span></a></div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero container" id="top" aria-labelledby="paper-title">
+      <h1 id="paper-title"><span class="project-name"><span class="method-name">DreamFree</span></span><span class="paper-title">Future Representation Distillation<br class="desktop-break"> for World Action Models</span></h1>
+      <p class="positioning-headline">Imagination-free WAMs, scaled to 14B and DROID-scale data.</p>
+      <div class="authors" aria-label="Authors">
+        <span><a data-author="jaehyeongJo">Jaehyeong Jo</a><sup>*</sup></span><span><a data-author="sangwonJang">Sangwon Jang</a><sup>*</sup></span><span><a data-author="sihyunYu">Sihyun Yu</a></span><span><a data-author="seonghyeonYe">Seonghyeon Ye</a></span><span><a data-author="yekyungNah">Yekyung Nah</a></span><span><a data-author="hojungJung">Hojung Jung</a></span><span><a data-author="kiminLee">Kimin Lee</a><sup>†</sup></span><span><a data-author="sungJuHwang">Sung Ju Hwang</a><sup>†</sup></span>
+      </div>
+      <div class="affiliation"><a href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img class="kaist-logo" src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></div>
+      <p class="author-note"><sup>*</sup> Project lead <span>·</span> <sup>†</sup> Equal advising</p>
+      <div class="resource-links">
+        <button class="resource unavailable" disabled title="Add the paper URL in content.js when available"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7l-4-4Zm0 0v5h4M9 12h6M9 16h6"/></svg>Paper <small>soon</small></button>
+        <button class="resource unavailable" disabled title="Add the public code URL in content.js when available"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></button>
+        <a class="resource primary" href="#examples"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
+      </div>
+      <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 I2V)</span> · Single GPU · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
+      <figure class="teaser">
+        <div class="teaser-media">
+          <video id="teaser-video" controls autoplay muted loop playsinline preload="metadata" poster="assets/posters/hat.jpg" aria-label="DreamFree teaser preview: DROID robot hanging a hat"><source src="assets/videos/hat.mp4" type="video/mp4"></video>
+          <span class="preview-label">Teaser preview</span>
+        </div>
+        <figcaption>DROID rollout · Placeholder for the final teaser.</figcaption>
+      </figure>
+      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>Effectively leveraging video priors, <em>even without generating future videos.</em></p>
+    </section>
+
+    <section class="section container" id="overview" aria-labelledby="overview-title">
+      <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2><p>Skipping video generation makes inference fast.<br>Making stronger video priors useful for control is the next challenge.</p></div>
+      <figure class="paper-figure concept-comparison">
+        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future frames; Fast-WAM uses one visual forward pass with weight-shared representations; DreamFree explicitly aligns current-frame representations with future-aware teacher features while preserving imagination-free inference."></button>
+        <figcaption class="concept-caption">
+          <div><h3>Joint WAMs</h3><p>Use video priors directly through <strong>future-video generation</strong>. Iterative denoising is costly, and errors in predicted futures can lead to inaccurate actions.</p></div>
+          <div><h3>Fast-WAM</h3><p>Retains video co-training but skips video generation at inference. Predictive knowledge transfers <strong>implicitly through shared weights</strong>, without directly aligning current-frame features to future-aware representations.</p></div>
+          <div><h3><span class="method-name">DreamFree</span></h3><p>Adds <strong>explicit future representation alignment</strong> to video generative training. Current-frame features learn from a frozen teacher that sees the future, then support actions without generating it.</p></div>
+        </figcaption>
+      </figure>
+      <div class="alignment-insight">
+        <h3>Shared weights alone do not guarantee predictive features.</h3>
+        <p>In our RoboCasa evaluation, scaling Fast-WAM from 5B to 14B barely changes success (<strong>44.4 → 44.7%</strong>). A stronger video generator does not automatically make current-frame features more useful for actions. <span class="method-name">DreamFree</span> directly supervises these features with <strong>future representation distillation</strong>, enabling the same backbone scaling to improve success from <strong>58.5 → 71.7%</strong>.</p>
+        <p class="pretraining-note"><span class="method-name">DreamFree</span> achieves these gains <strong>without cross-embodiment pre-training.</strong></p>
+      </div>
+      <div class="deployment-evidence">
+        <div class="deployment-story">
+          <div><h3>14B video priors at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success. Imagination-free inference enables nearly continuous control without video step distillation or asynchronous execution.</p></div>
+          <div><h3>A 14B backbone on 48 GB.</h3><p>Omitting future-video generation and classifier-free guidance (CFG) reduces the inference memory footprint. The policy can fit on a single A6000 with 48 GB of memory; <strong>all reported experiments use H200 GPUs.</strong></p></div>
+        </div>
+        <figure class="paper-figure speed-overview"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 1 success versus inference latency plot"><img src="assets/figures/droid_success_vs_latency_v3.png" width="2400" height="2181" loading="lazy" alt="Figure 1: DreamFree achieves 64% real-world success with 17.8 times lower inference latency than DreamZero, which achieves 56%; pi 0.5 achieves 16% success with comparable latency to DreamFree."></button><figcaption><strong>Higher success, lower latency.</strong> Figure 1 · Real-world DROID evaluation on H200 GPUs. Latency is measured per action chunk.</figcaption></figure>
+      </div>
+      <details class="abstract"><summary>Read the full abstract <span aria-hidden="true">+</span></summary><div><p>World Action Models (WAM) use the predictive knowledge of pretrained video diffusion models for robot control through future video prediction. However, iterative video denoising is costly, and inaccurate visual predictions can compromise action prediction. Our key idea is to make this predictive knowledge available through visual representations computed from the current observation, enabling action prediction without generating future videos.</p><p>We introduce <span class="method-name">DreamFree</span>, a WAM that repurposes a pretrained video diffusion model as a predictive visual encoder through representation distillation. The visual encoder learns to predict a frozen video diffusion model’s representation using only the current observation. An action module is then trained to predict actions by extracting action-relevant information from the visual encoder. Across real-world and simulated tasks, <span class="method-name">DreamFree</span> achieves higher success rates than state-of-the-art VLAs and WAMs, while performing real-time closed-loop control at 11Hz with a 14B video diffusion backbone. Experiments show that <span class="method-name">DreamFree</span> can translate stronger video priors and additional video data into better robot control and enable learning new robot tasks from video demonstrations, including videos from a different embodiment, without action annotation for the new tasks.</p></div></details>
+    </section>
+
+    <section class="section section-tint" id="method" aria-labelledby="method-title"><div class="container">
+      <div class="section-heading"><h2 id="method-title">Make video priors useful<br>without imagining videos.</h2><p>An explicit alignment loss makes current-frame features predictive of the future.</p></div>
+      <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge DreamFree method diagram"><img src="assets/figures/method_v2.png" width="2400" height="615" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption><strong><span class="method-name">DreamFree</span> architecture.</strong> Future frames supervise representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
+      
+      <div class="method-steps"><article><span class="step-label">STAGE 1</span><h3>Distill predictive representations</h3><p>A frozen video diffusion teacher observes current and future frames. An alignment loss trains the current-frame features to predict the teacher’s future-aware representations, alongside the original video generative objective. This directly supervises the features used for control and needs no action labels.</p></article><article><span class="step-label">STAGE 2</span><h3>Learn to read out actions</h3><p>Using action-labeled robot demonstrations, a readout module extracts action-relevant features from the visual encoder. An action decoder maps these features to executable action chunks.</p></article></div>
+      <div class="inference"><span>AT INFERENCE</span><p>Current observation <b aria-hidden="true">→</b> Predictive visual encoder <b aria-hidden="true">→</b> Action module <b aria-hidden="true">→</b> Robot action</p><small>Predictive video knowledge in a single visual pass, followed by action decoding.</small></div>
+    </div></section>
+
+    <section class="section container" id="results" aria-labelledby="results-title">
+      <div class="section-heading"><h2 id="results-title">Results</h2><p>Stronger video priors translate into better robot control.</p></div>
+      <article class="scaling-finding">
+        <div class="finding-copy"><h3>RoboCasa-Kitchen</h3><p>Across 24 kitchen tasks, <span class="method-name">DreamFree</span> reaches <strong>71.7% success</strong>, rising to <strong>74.4%</strong> with extra video data. Scaling the backbone from 5B to 14B adds <strong>13.2 percentage points</strong>, compared with 0.3 for Fast-WAM.</p></div>
+        <div class="result-tables">
+          <div class="scaling-evidence"><table class="scaling-table"><caption>Comparison with VLA and WAM baselines</caption><thead><tr><th scope="col">Method</th><th scope="col">Family</th><th scope="col">Success (%)</th></tr></thead><tbody>
+            <tr><th scope="row">π₀</th><td>VLA</td><td>62.5</td></tr>
+            <tr><th scope="row">GR00T-N1.5</th><td>VLA</td><td>64.1</td></tr>
+            <tr><th scope="row">FLARE</th><td>VLA</td><td>66.4</td></tr>
+            <tr><th scope="row">Cosmos Policy</th><td>WAM</td><td>67.1</td></tr>
+            <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span> (14B)</th><td>WAM</td><td>71.7</td></tr>
+            <tr class="ours extra-video"><th scope="row" aria-label="DreamFree 14B + extra video">+ extra video</th><td>WAM</td><td><strong>74.4</strong></td></tr>
+          </tbody></table><p class="scaling-note">Baseline scores are reported results from the paper’s RoboCasa-Kitchen comparison.</p></div>
+          <div class="scaling-evidence"><table class="scaling-table"><caption>Scaling imagination-free WAMs · Success (%)</caption><thead><tr><th scope="col">Method</th><th scope="col">5B</th><th scope="col">14B</th><th scope="col">Gain</th></tr></thead><tbody>
+            <tr><th scope="row">Fast-WAM</th><td>44.4</td><td>44.7</td><td>+0.3 pp</td></tr>
+            <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td>58.5</td><td>71.7</td><td>+13.2 pp</td></tr>
+            <tr class="ours extra-video"><th scope="row" aria-label="DreamFree + extra video">+ extra video</th><td>68.8</td><td>74.4</td><td>+5.6 pp</td></tr>
+          </tbody></table><p class="scaling-note">Gain: 5B → 14B within each row.</p>
+            <div class="scaling-takeaway"><p><span class="method-name">DreamFree</span> effectively leverages <strong>video priors without imagination</strong> and benefits from <strong>additional video-only data</strong>.</p><p class="takeaway-detail">Without additional action annotations.</p></div>
+          </div>
+        </div>
+      </article>
+      <article class="real-world-finding">
+        <div class="real-world-summary">
+          <div class="finding-copy"><h3>DROID real-world evaluation</h3><p>We evaluate <strong>10 tasks × 5 trials</strong> per policy, using new objects or scene arrangements within familiar task types. All policies run out of the box, without task-specific fine-tuning.</p><p><strong>Success</strong> measures completed tasks. <strong>Task progress</strong> gives partial credit using each task’s scoring rubric.</p></div>
+          <div class="scaling-evidence"><table class="scaling-table"><caption>50 real-world trials per policy</caption><thead><tr><th scope="col">Method</th><th scope="col">Success (%)</th><th scope="col">Progress (%)</th><th scope="col">Latency<br><span class="table-unit">(ms/chunk)</span></th></tr></thead><tbody>
+            <tr><th scope="row">π₀.₅</th><td>16.0</td><td>33.5</td><td>81</td></tr>
+            <tr><th scope="row">DreamZero</th><td>56.0</td><td>71.8</td><td>1,632</td></tr>
+            <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td><strong>64.0</strong></td><td><strong>83.0</strong></td><td>91</td></tr>
+          </tbody></table><p class="scaling-note">Mean inference latency per action chunk on H200 GPUs, using each policy’s deployed configuration.</p></div>
+        </div>
+        <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
+      </article>
+      <article class="finding"><div class="finding-copy"><h3>11 Hz real-time control.<br>One GPU.</h3><p>A 14B video backbone reaches <strong>11 Hz on a single H200</strong>, a <strong>17.8× inference speedup</strong> over DreamZero. Robot actions remain nearly continuous without relying on video step distillation or asynchronous execution to mask inference delays.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
+      <article class="transfer"><h3>New task knowledge, without new action labels.</h3><p class="reading-width">The encoder can learn from additional videos, including demonstrations from a different embodiment. The paper studies atomic-to-composite task transfer, cross-embodiment transfer, and video-only adaptation with a fixed action module.</p><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge video task transfer examples"><img src="assets/figures/task_transfer_examples.png" width="2400" height="361" loading="lazy" alt="Successful task execution sequences after learning from video demonstrations, including composite manipulation tasks."></button><figcaption><strong>Transferring video knowledge to actions.</strong> Selected successful rollouts after learning from video demonstrations.</figcaption></figure></article>
+    </section>
+
+    <section class="section section-tint" id="examples" aria-labelledby="examples-title"><div class="container">
+      <div class="section-heading"><h2 id="examples-title"><span class="method-name">DreamFree</span> in action.</h2><p>A closer look at manipulation across tasks and environments.</p></div>
+      <div class="gallery-toolbar"><div class="dataset-tabs" role="tablist" aria-label="Video dataset"><button id="tab-droid" role="tab" aria-selected="true" aria-controls="video-panel" data-dataset="droid">DROID <span>Real</span></button><button id="tab-robocasa" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="robocasa" tabindex="-1">RoboCasa</button><button id="tab-yam" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="yam" tabindex="-1">YAM <span>ABC-130K</span></button></div><button id="play-all" class="text-button" type="button">▶ Play all</button></div>
+      <div id="video-panel" role="tabpanel" aria-labelledby="tab-droid" tabindex="0"><p id="dataset-description" class="dataset-description"></p><div id="video-grid" class="video-grid"></div></div>
+      <p id="gallery-status" class="sr-only" aria-live="polite"></p>
+      <noscript><p>JavaScript enables the dataset tabs. <a href="assets/videos/hat.mp4">Watch a DROID rollout here.</a></p></noscript>
+    </div></section>
+
+    <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
+      <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2><p>TBD</p></div>
+    </section>
+
+    <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><p class="citation-note">Draft citation. Publication details will be updated with the paper release.</p><pre><code id="bibtex">@misc{jo2026dreamfree,
+  title  = {Future Representation Distillation for World Action Models},
+  author = {Jaehyeong Jo and Sangwon Jang and Sihyun Yu and
+            Seonghyeon Ye and Yekyung Nah and Hojung Jung and
+            Kimin Lee and Sung Ju Hwang},
+  year   = {2026},
+  note   = {Manuscript}
+}</code></pre><p id="copy-status" class="sr-only" aria-live="polite"></p></section>
+  </main>
+  <footer class="container footer"><a class="wordmark" href="#top"><span class="method-name">DreamFree</span></a><p>Future Representation Distillation for World Action Models</p><a class="footer-affiliation" href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></footer>
+  <dialog id="figure-dialog" aria-label="Enlarged paper figure"><button id="close-figure" aria-label="Close enlarged figure" type="button">×</button><img id="dialog-image" alt=""><p>Press Esc or click outside the figure to close.</p></dialog>
+</body>
+</html>

@@ -24,16 +24,20 @@ mediaPlayback.register(teaser, 'teaser');
 mediaPlayback.bindToggle(document.querySelector('#teaser-motion'), 'teaser');
 
 // Unpublished links stay visibly unavailable instead of pointing to a guessed URL.
-document.querySelectorAll('.resource.unavailable').forEach((button, index) => {
-  const url = index === 0 ? config.paperUrl : config.codeUrl;
+document.querySelectorAll('[data-resource]').forEach(button => {
+  const url = config[`${button.dataset.resource}Url`];
   if (!url) return;
+  if (button.tagName === 'A') {
+    button.href = url;
+    return;
+  }
   const link = document.createElement('a');
   link.className = 'resource';
   link.href = url;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.innerHTML = button.innerHTML;
-  link.querySelector('small').remove();
+  if (!button.dataset.comingSoon) link.querySelector('small')?.remove();
   button.replaceWith(link);
 });
 

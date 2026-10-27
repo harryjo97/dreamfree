@@ -2,7 +2,7 @@
 // Video-only placeholders intentionally reuse the supplied DROID rollouts.
 window.DREAMFREE = {
   paperUrl: null,
-  codeUrl: null,
+  codeUrl: 'https://github.com/harryjo97/dreamfree',
   // 개인사이트 URL을 따옴표 안에 입력하세요. 빈칸이면 일반 이름으로 표시됩니다.
   authorLinks: {
     jaehyeongJo: 'https://harryjo97.github.io/',   // Jaehyeong Jo

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore all 10 DROID real-world tasks, with five evaluation trials per policy for DreamFree, DreamZero, and π0.5.">
+  <meta name="theme-color" content="#ffffff">
+  <title>DROID Gallery — DreamFree</title>
+  <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="gallery.css">
+  <script src="gallery-data.js" defer></script>
+  <script src="video-playback.js" defer></script>
+  <script src="gallery.js" defer></script>
+</head>
+<body class="droid-gallery">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav container" aria-label="Main navigation">
+      <a class="wordmark" href="index.html"><span class="method-name">DreamFree</span></a>
+      <a class="back-to-project" href="index.html#examples"><span aria-hidden="true">←</span> Back to project</a>
+    </nav>
+  </header>
+  <main id="main" class="container">
+    <section class="droid-heading" aria-labelledby="gallery-title">
+      <p class="eyebrow">REAL-WORLD EVALUATION</p>
+      <h1 id="gallery-title">DROID Gallery</h1>
+      <p>Ten tasks. Five trials per policy. Explore every rollout.</p>
+      <details class="droid-summary">
+        <summary>Overall results <span>50 trials per policy</span></summary>
+        <table class="scaling-table">
+          <caption>Success measures completed tasks; progress gives partial credit for task completion.</caption>
+          <thead><tr><th scope="col">Policy</th><th scope="col">Success</th><th scope="col">Progress</th></tr></thead>
+          <tbody id="overall-results"></tbody>
+        </table>
+      </details>
+    </section>
+    <div class="droid-layout">
+      <aside class="droid-sidebar" aria-label="Choose an evaluation task">
+        <h2>Tasks <span>01–10</span></h2>
+        <nav id="droid-task-nav" aria-label="Evaluation tasks"></nav>
+        <label class="droid-mobile-picker">Task<select id="droid-task-select"></select></label>
+      </aside>
+      <section class="droid-workspace" aria-labelledby="droid-task-title">
+        <div class="droid-task-heading">
+          <p id="droid-task-number" class="eyebrow"></p>
+          <h2 id="droid-task-title"></h2>
+          <p class="droid-instruction"><span>Instruction</span> <q id="droid-instruction"></q></p>
+        </div>
+        <div id="droid-task-metrics" class="droid-task-metrics" aria-label="Results across five trials per policy"></div>
+        <div class="droid-model-tabs dataset-tabs" role="tablist" aria-label="Policy videos">
+          <button id="droid-model-ours" type="button" role="tab" aria-selected="true" aria-controls="droid-trials" data-model="ours"><span class="method-name">DreamFree</span></button>
+          <button id="droid-model-dreamzero" type="button" role="tab" aria-selected="false" aria-controls="droid-trials" data-model="dreamzero" tabindex="-1">DreamZero</button>
+          <button id="droid-model-pi" type="button" role="tab" aria-selected="false" aria-controls="droid-trials" data-model="pi" tabindex="-1">π₀.₅</button>
+        </div>
+        <div class="droid-video-toolbar">
+          <label>Speed<select id="droid-speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+          <button id="droid-playback" class="text-button" type="button">Pause videos</button>
+        </div>
+        <div id="droid-trials" class="droid-trials" role="tabpanel" aria-labelledby="droid-model-ours" tabindex="0"></div>
+        <p id="droid-status" class="sr-only" aria-live="polite"></p>
+      </section>
+    </div>
+    <noscript><p>Enable JavaScript to browse tasks and policies. <a href="assets/gallery/ours/01_bottle_upright/trial_01.mp4">Watch a DreamFree rollout.</a></p></noscript>
+  </main>
+  <footer class="footer container"><a class="wordmark" href="index.html"><span class="method-name">DreamFree</span></a><a class="back-to-project" href="index.html#results">View results on the project page <span aria-hidden="true">↗</span></a></footer>
+</body>
+</html>

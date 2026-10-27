@@ -32,8 +32,9 @@
       <div class="affiliation"><a href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img class="kaist-logo" src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></div>
       <p class="author-note"><sup>*</sup> Project lead <span>·</span> <sup>†</sup> Equal advising</p>
       <div class="resource-links">
-        <button class="resource unavailable" disabled title="Add the paper URL in content.js when available"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7l-4-4Zm0 0v5h4M9 12h6M9 16h6"/></svg>Paper <small>soon</small></button>
-        <button class="resource unavailable" disabled title="Add the public code URL in content.js when available"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></button>
+        <button class="resource unavailable" data-resource="paper" disabled title="arXiv preprint coming soon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 3 10 18M17 3 7 21M4 7l5 5-5 5m16-10-5 5 5 5"/></svg>arXiv <small>soon</small></button>
+        <a class="resource" data-resource="code" data-coming-soon="true" href="https://github.com/harryjo97/dreamfree" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></a>
+        <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>DROID Gallery</a>
         <a class="resource primary" href="#examples"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
       <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 I2V)</span> · Single GPU · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
@@ -118,16 +119,12 @@
     </section>
 
     <section class="section section-tint" id="examples" aria-labelledby="examples-title"><div class="container">
-      <div class="section-heading"><h2 id="examples-title"><span class="method-name">DreamFree</span> in action.</h2><p>A closer look at manipulation across tasks and environments.</p></div>
+      <div class="section-heading"><h2 id="examples-title"><span class="method-name">DreamFree</span> in action.</h2><p>A closer look at manipulation across tasks and environments.</p><a class="gallery-entry" href="gallery.html">View all 10 DROID tasks <span aria-hidden="true">↗</span></a></div>
       <div class="gallery-toolbar"><div class="dataset-tabs" role="tablist" aria-label="Video dataset"><button id="tab-droid" role="tab" aria-selected="true" aria-controls="video-panel" data-dataset="droid">DROID <span>Real</span></button><button id="tab-robocasa" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="robocasa" tabindex="-1">RoboCasa</button><button id="tab-yam" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="yam" tabindex="-1">YAM <span>ABC-130K</span></button></div><button id="play-all" class="text-button" type="button">Pause videos</button></div>
       <div id="video-panel" role="tabpanel" aria-labelledby="tab-droid" tabindex="0"><p id="dataset-description" class="dataset-description"></p><div id="video-grid" class="video-grid"></div></div>
       <p id="gallery-status" class="sr-only" aria-live="polite"></p>
       <noscript><p>JavaScript enables the dataset tabs. <a href="assets/videos/hat.mp4">Watch a DROID rollout here.</a></p></noscript>
     </div></section>
-
-    <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
-      <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2><p>TBD</p></div>
-    </section>
 
     <section class="section container transfer transfer-study" id="video-transfer" aria-labelledby="transfer-title">
       <h2 id="transfer-title">Can DreamFree also benefit from video-only data?</h2>
@@ -182,6 +179,10 @@
         <p id="transfer-status" class="sr-only" aria-live="polite"></p>
       </div>
       <p class="transfer-scope"><strong>Note:</strong> The atomic training data typically includes the individual skills used in composite tasks, e.g., “Open the microwave” and “Close the door.”</p>
+    </section>
+
+    <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
+      <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2><p>TBD</p></div>
     </section>
 
     <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><p class="citation-note">Draft citation. Publication details will be updated with the paper release.</p><pre><code id="bibtex">@misc{jo2026dreamfree,

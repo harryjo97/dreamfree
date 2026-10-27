@@ -140,7 +140,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/microwave/after.mp4"
       },
       "trainingNote": "Composite-task demonstration video",
-      "pairNote": "Before and after use the same evaluation seed and trial.",
       "instruction": "Pick the cheese from the counter and place it in the microwave. Then turn on the microwave.",
       "successRate": {
         "before": 0,
@@ -173,7 +172,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/vegetables/after.mp4"
       },
       "trainingNote": "Composite-task demonstration video",
-      "pairNote": "Before and after use the same evaluation seed and trial.",
       "instruction": "Pick the vegetables from the sink and place them on the cutting board.",
       "successRate": {
         "before": 0,
@@ -206,7 +204,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/pantry/after.mp4"
       },
       "trainingNote": "Composite-task demonstration video",
-      "pairNote": "Before and after use the same evaluation seed and trial.",
       "instruction": "Pick the cans from the counter and place them in their designated side in the cabinet.",
       "successRate": {
         "before": 0,
@@ -239,7 +236,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/coffee/after.mp4"
       },
       "trainingNote": "Composite-task demonstration video",
-      "pairNote": "Before and after use the same evaluation seed and trial.",
       "instruction": "Pick the mug from the cabinet, place it under the coffee machine dispenser, and press the start button.",
       "successRate": {
         "before": 0,
@@ -270,7 +266,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/franka-basket/after.mp4"
       },
       "trainingNote": "Composite-task demonstration from another embodiment",
-      "pairNote": "Before and after use the same environment seed and task instruction.",
       "instruction": "Place the can in the basket, then lift the basket.",
       "successRate": {
         "before": 0,
@@ -300,7 +295,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/franka-cans/after.mp4"
       },
       "trainingNote": "Composite-task demonstration from another embodiment",
-      "pairNote": "Before and after use the same environment seed and task instruction.",
       "instruction": "Place both cans in the plastic box.",
       "successRate": {
         "before": 0,
@@ -330,7 +324,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/franka-bowls/after.mp4"
       },
       "trainingNote": "Composite-task demonstration from another embodiment",
-      "pairNote": "Before and after use the same environment seed and task instruction.",
       "instruction": "Stack the three bowls.",
       "successRate": {
         "before": 20,
@@ -363,7 +356,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/video-adaptation/after.mp4"
       },
       "trainingNote": "Single-view composite-task demonstration for fine-tuning",
-      "pairNote": "Before and after use the same environment seed and task instruction.",
       "instruction": "Place the can in the basket, then lift the basket.",
       "successRate": {
         "before": 0,
@@ -396,7 +388,6 @@ window.DREAMFREE.transfer = {
         "src": "assets/transfer/video-finetuning-multi/after.mp4"
       },
       "trainingNote": "Multi-view composite-task demonstration for fine-tuning",
-      "pairNote": "Selected clips share the same seed and instruction. The multi-view result uses native inference; the baseline and single-view clips use FP8. These clips are qualitative examples, not a controlled comparison of camera settings.",
       "instruction": "Place the can in the basket, then lift the basket.",
       "successRate": {
         "before": 0,

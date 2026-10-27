@@ -64,7 +64,6 @@
     find('evaluation-note').textContent = currentTask.evaluationNote || (rates
       ? `Paper evaluation: ${data.evaluationTrials} trials per task. Progress measures average subgoal completion; videos are selected examples.`
       : 'Qualitative example only. Success and progress are not reported for this task in the paper’s transfer figure.');
-    find('pair-note').textContent = currentTask.pairNote;
     sampleButtons.replaceChildren();
     currentTask.training.forEach((media, index) => {
       const button = document.createElement('button');

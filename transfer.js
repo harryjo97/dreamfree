@@ -44,6 +44,34 @@
     find('status').textContent = `Training sample ${index + 1} of ${currentTask.training.length} selected.`;
   }
 
+  function renderMetric(role, id, label, values) {
+    const element = find(`${role}-${id}`);
+    const gain = role === 'after' && values
+      ? Math.round((values.after - values.before) * 10) / 10
+      : 0;
+    element.classList.toggle('is-improved', gain > 0);
+    element.removeAttribute('title');
+    element.replaceChildren(`${label}: `);
+    if (!values) {
+      element.append('not reported');
+      return;
+    }
+    const value = document.createElement('strong');
+    value.textContent = `${values[role]}%`;
+    element.append(value);
+    if (gain > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'transfer-gain-arrow';
+      arrow.textContent = '↑';
+      arrow.setAttribute('aria-hidden', 'true');
+      const detail = document.createElement('span');
+      detail.className = 'sr-only';
+      detail.textContent = `, up ${gain} percentage points from the baseline`;
+      element.append(arrow, detail);
+      element.title = `+${gain} percentage points (${values.before}% → ${values.after}%)`;
+    }
+  }
+
   function renderTask(id, sampleIndex = 0) {
     videos.forEach(video => video.pause());
     currentTask = tasks.get(id);
@@ -56,10 +84,8 @@
     ['before', 'after'].forEach(role => { find(`${role}-instruction`).textContent = currentTask.instruction; });
     const rates = currentTask.successRate;
     ['before', 'after'].forEach(role => {
-      find(`${role}-rate`).textContent = rates ? `Success: ${rates[role]}%` : 'Success: not reported';
-      find(`${role}-progress`).textContent = currentTask.progress
-        ? `Progress: ${currentTask.progress[role]}%`
-        : 'Progress: not reported';
+      renderMetric(role, 'rate', 'Success', rates);
+      renderMetric(role, 'progress', 'Progress', currentTask.progress);
     });
     find('evaluation-note').textContent = currentTask.evaluationNote || (rates
       ? `Paper evaluation: ${data.evaluationTrials} trials per task. Progress measures average subgoal completion; videos are selected examples.`

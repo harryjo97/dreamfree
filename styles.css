@@ -286,8 +286,11 @@ pre { font-size: 14px; }
 .transfer-video-card h4 { margin: 5px 0 3px; font-size: 18px; line-height: 1.4; font-weight: 600; }
 .transfer-card-detail { margin: 0 0 9px; color: #56606d; font-size: 13px; line-height: 1.5; }
 .transfer-label, .transfer-result { display: inline-block; padding: 2px 7px; background: #f0f3f7; border-radius: 3px; color: #586577; font-size: 12px; }
-.transfer-metrics { display: flex; flex-wrap: wrap; gap: 2px 12px; min-width: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
+.transfer-metrics { display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
 .transfer-metrics > span { white-space: nowrap; }
+.transfer-metrics .is-improved { color: #237044; }
+.transfer-metrics .is-improved strong { font-weight: 750; }
+.transfer-gain-arrow { margin-left: 3px; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 700; }
 .transfer-result.is-failure { background: #f8f0eb; color: #8d5941; }
 .transfer-result.is-success { background: #edf5f0; color: #39694d; }
 .transfer-video-frame { overflow: hidden; border: 1px solid var(--embodiment-border); border-radius: 5px; background: #171c24; }

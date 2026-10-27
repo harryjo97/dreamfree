@@ -5,6 +5,7 @@
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
 
 .resource-links { flex-wrap: wrap; }
+.tldr em { font-style: normal; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .resource:not(.unavailable):not(.primary):hover { border-color: #91a9c7; background: #f5f8fc; color: var(--blue-dark); }
 .gallery-entry { display: inline-flex; align-items: center; gap: 7px; margin-top: 17px; font-size: 14px; border-bottom: 1px solid #b9c9dd; }
 .gallery-entry:hover { color: var(--blue-dark); border-color: var(--blue); }
@@ -252,7 +253,7 @@ pre { font-size: 14px; }
 
 /* A secondary, selectable study of transfer from video-only data. */
 .transfer-study { text-align: left; border-top: 1px solid var(--line); }
-.transfer-study > h2 { margin: 0 0 17px; font-size: 25px; letter-spacing: -.65px; line-height: 1.35; font-weight: 550; }
+.transfer-study > h2 { margin: 0 0 17px; font-size: 28px; letter-spacing: -.65px; line-height: 1.35; font-weight: 550; }
 .transfer-study > h2, .transfer-study > .reading-width, .transfer-definition { text-align: center; }
 .transfer-study > .transfer-intro { max-width: none; }
 .transfer-study [hidden] { display: none !important; }

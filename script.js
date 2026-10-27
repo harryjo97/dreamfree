@@ -13,14 +13,15 @@ document.querySelectorAll('[data-author]').forEach(link => {
     link.rel = 'noopener noreferrer';
   } catch { /* Keep the name readable if a URL is incomplete. */ }
 });
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const mediaPlayback = window.DreamFreeMedia;
 const teaser = document.querySelector('#teaser-video');
 if (teaser.querySelector('source').getAttribute('src') !== config.teaser.src) {
   teaser.querySelector('source').src = config.teaser.src;
   teaser.load();
 }
 teaser.poster = config.teaser.poster;
-if (reducedMotion.matches) { teaser.autoplay = false; teaser.pause(); }
+mediaPlayback.register(teaser, 'teaser');
+mediaPlayback.bindToggle(document.querySelector('#teaser-motion'), 'teaser');
 
 // Unpublished links stay visibly unavailable instead of pointing to a guessed URL.
 document.querySelectorAll('.resource.unavailable').forEach((button, index) => {
@@ -36,20 +37,13 @@ document.querySelectorAll('.resource.unavailable').forEach((button, index) => {
   button.replaceWith(link);
 });
 
-const tabs = [...document.querySelectorAll('[role="tab"]')];
+const tabs = [...document.querySelectorAll('#examples [role="tab"]')];
 const grid = document.querySelector('#video-grid');
 const panel = document.querySelector('#video-panel');
 const playAll = document.querySelector('#play-all');
-let galleryVersion = 0;
 function galleryVideos() { return [...grid.querySelectorAll('video')]; }
-function updatePlayButton() {
-  const playing = galleryVideos().some(video => !video.paused);
-  playAll.textContent = playing ? 'Ⅱ Pause all' : '▶ Play all';
-  playAll.setAttribute('aria-label', playing ? 'Pause all example videos' : 'Play all example videos');
-}
 function renderDataset(key) {
-  galleryVersion++;
-  galleryVideos().forEach(video => video.pause());
+  galleryVideos().forEach(video => mediaPlayback.unregister(video));
   const dataset = config.datasets[key];
   tabs.forEach(tab => { const active = tab.dataset.dataset === key; tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1; });
   panel.setAttribute('aria-labelledby', `tab-${key}`);
@@ -78,18 +72,16 @@ function renderDataset(key) {
     source.type = 'video/mp4';
     video.append(source);
     video.poster = clip.poster || `assets/posters/${id}.jpg`;
-    video.controls = true; video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'metadata';
+    video.controls = false; video.muted = true; video.loop = true; video.playsInline = true; video.preload = 'metadata';
     video.setAttribute('aria-label', `${clip.title}${dataset.placeholder ? ' — DROID placeholder' : ' — DreamFree DROID rollout'}`);
-    video.addEventListener('play', () => { teaser.pause(); updatePlayButton(); });
-    video.addEventListener('pause', updatePlayButton);
     video.addEventListener('error', () => { document.querySelector('#gallery-status').textContent = 'A video could not load. Check its path in content.js.'; });
     const number = document.createElement('span'); number.className = 'video-number'; number.textContent = String(index + 1).padStart(2, '0');
     frame.append(video, number);
     const caption = document.createElement('figcaption'); caption.textContent = clip.title;
     const meta = document.createElement('span'); meta.className = 'video-meta'; meta.textContent = dataset.placeholder ? 'DROID footage · Placeholder' : 'DROID · Real-world rollout';
     caption.append(meta); card.append(frame, caption); grid.append(card);
+    mediaPlayback.register(video, 'gallery');
   });
-  updatePlayButton();
 }
 tabs.forEach((tab, index) => {
   tab.addEventListener('click', () => renderDataset(tab.dataset.dataset));
@@ -103,24 +95,8 @@ tabs.forEach((tab, index) => {
     event.preventDefault(); tabs[next].focus(); renderDataset(tabs[next].dataset.dataset);
   });
 });
-playAll.addEventListener('click', async () => {
-  const videos = galleryVideos();
-  if (videos.some(video => !video.paused)) { videos.forEach(video => video.pause()); return; }
-  const version = galleryVersion;
-  const results = await Promise.allSettled(videos.map(video => video.play()));
-  if (version !== galleryVersion) { videos.forEach(video => video.pause()); return; }
-  if (results.some(result => result.status === 'rejected')) document.querySelector('#gallery-status').textContent = 'Some videos could not start. Use each video’s play button.';
-  updatePlayButton();
-});
+mediaPlayback.bindToggle(playAll, 'gallery');
 renderDataset('droid');
-
-// Stop media when its section leaves the screen or the tab becomes hidden.
-const observer = new IntersectionObserver(entries => {
-  entries.forEach(entry => { if (!entry.isIntersecting) entry.target.querySelectorAll('video').forEach(video => video.pause()); });
-}, { threshold: 0 });
-observer.observe(document.querySelector('.teaser'));
-observer.observe(document.querySelector('#examples'));
-document.addEventListener('visibilitychange', () => { if (document.hidden) document.querySelectorAll('video').forEach(video => video.pause()); });
 
 const dialog = document.querySelector('#figure-dialog');
 const dialogImage = document.querySelector('#dialog-image');

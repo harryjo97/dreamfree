@@ -9,7 +9,9 @@
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="content.js" defer></script>
+  <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
+  <script src="transfer.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -37,10 +39,10 @@
       <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 I2V)</span> · Single GPU · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
       <figure class="teaser">
         <div class="teaser-media">
-          <video id="teaser-video" controls autoplay muted loop playsinline preload="metadata" poster="assets/posters/hat.jpg" aria-label="DreamFree teaser preview: DROID robot hanging a hat"><source src="assets/videos/hat.mp4" type="video/mp4"></video>
+          <video id="teaser-video" muted loop playsinline disablepictureinpicture disableremoteplayback preload="metadata" poster="assets/posters/hat.jpg" aria-label="DreamFree teaser preview: DROID robot hanging a hat"><source src="assets/videos/hat.mp4" type="video/mp4"></video>
           <span class="preview-label">Teaser preview</span>
         </div>
-        <figcaption>DROID rollout · Placeholder for the final teaser.</figcaption>
+        <figcaption>DROID rollout · Placeholder for the final teaser. <button id="teaser-motion" class="media-toggle" type="button">Pause videos</button></figcaption>
       </figure>
       <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>Effectively leveraging video priors, <em>even without generating future videos.</em></p>
     </section>
@@ -113,12 +115,11 @@
         <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
       </article>
       <article class="finding"><div class="finding-copy"><h3>11 Hz real-time control.<br>One GPU.</h3><p>A 14B video backbone reaches <strong>11 Hz on a single H200</strong>, a <strong>17.8× inference speedup</strong> over DreamZero. Robot actions remain nearly continuous without relying on video step distillation or asynchronous execution to mask inference delays.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
-      <article class="transfer"><h3>New task knowledge, without new action labels.</h3><p class="reading-width">The encoder can learn from additional videos, including demonstrations from a different embodiment. The paper studies atomic-to-composite task transfer, cross-embodiment transfer, and video-only adaptation with a fixed action module.</p><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge video task transfer examples"><img src="assets/figures/task_transfer_examples.png" width="2400" height="361" loading="lazy" alt="Successful task execution sequences after learning from video demonstrations, including composite manipulation tasks."></button><figcaption><strong>Transferring video knowledge to actions.</strong> Selected successful rollouts after learning from video demonstrations.</figcaption></figure></article>
     </section>
 
     <section class="section section-tint" id="examples" aria-labelledby="examples-title"><div class="container">
       <div class="section-heading"><h2 id="examples-title"><span class="method-name">DreamFree</span> in action.</h2><p>A closer look at manipulation across tasks and environments.</p></div>
-      <div class="gallery-toolbar"><div class="dataset-tabs" role="tablist" aria-label="Video dataset"><button id="tab-droid" role="tab" aria-selected="true" aria-controls="video-panel" data-dataset="droid">DROID <span>Real</span></button><button id="tab-robocasa" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="robocasa" tabindex="-1">RoboCasa</button><button id="tab-yam" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="yam" tabindex="-1">YAM <span>ABC-130K</span></button></div><button id="play-all" class="text-button" type="button">▶ Play all</button></div>
+      <div class="gallery-toolbar"><div class="dataset-tabs" role="tablist" aria-label="Video dataset"><button id="tab-droid" role="tab" aria-selected="true" aria-controls="video-panel" data-dataset="droid">DROID <span>Real</span></button><button id="tab-robocasa" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="robocasa" tabindex="-1">RoboCasa</button><button id="tab-yam" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="yam" tabindex="-1">YAM <span>ABC-130K</span></button></div><button id="play-all" class="text-button" type="button">Pause videos</button></div>
       <div id="video-panel" role="tabpanel" aria-labelledby="tab-droid" tabindex="0"><p id="dataset-description" class="dataset-description"></p><div id="video-grid" class="video-grid"></div></div>
       <p id="gallery-status" class="sr-only" aria-live="polite"></p>
       <noscript><p>JavaScript enables the dataset tabs. <a href="assets/videos/hat.mp4">Watch a DROID rollout here.</a></p></noscript>
@@ -126,6 +127,63 @@
 
     <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
       <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2><p>TBD</p></div>
+    </section>
+
+    <section class="section container transfer transfer-study" id="video-transfer" aria-labelledby="transfer-title">
+      <h2 id="transfer-title">Can DreamFree also benefit from video-only data?</h2>
+      <p class="reading-width transfer-intro">Like other WAMs, DreamFree can benefit from video-only demonstrations through its predictive encoder.<br class="transfer-intro-break"> These results suggest that learning demonstrated task plans may help compose familiar skills into new tasks without additional action labels.</p>
+      <p class="transfer-definition"><strong>Atomic tasks</strong> teach individual skills. <strong>Composite tasks</strong> combine them in a sequence.</p>
+      <div class="transfer-tabs" role="tablist" aria-label="Video transfer setting" hidden>
+        <button id="transfer-tab-same" role="tab" aria-selected="true" aria-controls="transfer-panel" data-transfer-group="same">Atomic → Composite</button>
+        <button id="transfer-tab-cross" role="tab" aria-selected="false" aria-controls="transfer-panel" data-transfer-group="cross" tabindex="-1">Cross-embodiment</button>
+        <button id="transfer-tab-adapt" role="tab" aria-selected="false" aria-controls="transfer-panel" data-transfer-group="adapt" tabindex="-1">Video-only fine-tuning</button>
+      </div>
+      <div id="transfer-panel" role="tabpanel" aria-labelledby="transfer-tab-same" tabindex="0">
+        <div class="transfer-setting">
+          <h3 id="transfer-setting-title"><span id="transfer-setting-title-text">Composite videos in pre-training</span><span id="transfer-view-heading" hidden><label class="transfer-view-picker"><span class="sr-only">Training camera views</span><select id="transfer-view"><option value="single">Single-view</option><option value="multi">Multi-view</option></select></label> video-only fine-tuning</span></h3>
+          <p id="transfer-description">We add composite-task demonstrations to visual encoder pre-training, alongside atomic-task videos. Both models use the same atomic-task action labels to train the action module; no composite-task action labels are used.</p>
+        </div>
+        <div class="transfer-toolbar" hidden>
+          <label class="transfer-task-picker" for="transfer-task">Composite task<select id="transfer-task"><option value="microwave">Microwave thawing</option></select></label>
+          <div class="transfer-playback">
+            <span id="transfer-speed" class="transfer-speed">2× playback</span>
+            <button id="transfer-motion" class="media-toggle" type="button">Pause videos</button>
+          </div>
+        </div>
+        <p id="transfer-goal" class="transfer-goal">Open the microwave → put food inside → close the door → turn it on.</p>
+        <p id="transfer-evaluation-note" class="transfer-evaluation-note">Paper evaluation: 20 trials per task. Progress measures average subgoal completion; videos are selected examples.</p>
+        <div class="transfer-videos">
+          <figure class="transfer-video-card" data-embodiment="same">
+            <figcaption><span class="transfer-step">01 · Added data</span><h4 id="transfer-training-title">Composite-task videos</h4><p id="transfer-training-stage" class="transfer-card-detail">For encoder pre-training</p><div class="transfer-card-meta"><span class="transfer-label">No action labels</span><span id="transfer-training-robot" class="transfer-robot" hidden></span></div></figcaption>
+            <div class="transfer-video-frame">
+              <video id="transfer-training" muted loop playsinline disablepictureinpicture disableremoteplayback preload="metadata" src="assets/transfer/microwave/training.mp4" aria-label="Microwave thawing: training video sample"></video>
+            </div>
+            <div id="transfer-samples" class="transfer-samples" role="group" aria-label="Training video samples" hidden></div>
+            <p id="transfer-training-note" class="transfer-media-note">Composite-task demonstration video</p>
+          </figure>
+          <figure class="transfer-video-card" data-embodiment="same">
+            <figcaption><span class="transfer-step">02 · Before</span><h4 id="transfer-before-title">Trained on atomic data</h4><p class="transfer-card-detail">Atomic videos + action labels only</p><div class="transfer-card-meta"><div class="transfer-metrics"><span id="transfer-before-rate">Success: 0%</span><span id="transfer-before-progress">Progress: 8.8%</span></div><span id="transfer-before-robot" class="transfer-robot" hidden></span></div></figcaption>
+            <div class="transfer-video-frame">
+              <video id="transfer-before" muted loop playsinline disablepictureinpicture disableremoteplayback preload="metadata" src="assets/transfer/microwave/before.mp4" aria-label="Microwave thawing: atomic-only baseline failure"></video>
+            </div>
+            <p class="transfer-example-note"><span class="transfer-result is-failure">Selected failure example</span></p>
+            <p class="transfer-instruction"><span>Inference instruction</span><q id="transfer-before-instruction">Pick the cheese from the counter and place it in the microwave. Then turn on the microwave.</q></p>
+          </figure>
+          <figure class="transfer-video-card" data-embodiment="same">
+            <figcaption><span class="transfer-step">03 · After</span><h4 id="transfer-after-title">With composite videos</h4><p id="transfer-after-stage" class="transfer-card-detail">Added during pre-training</p><div class="transfer-card-meta"><div class="transfer-metrics"><span id="transfer-after-rate">Success: 5%</span><span id="transfer-after-progress">Progress: 26.3%</span></div><span id="transfer-after-robot" class="transfer-robot" hidden></span></div></figcaption>
+            <div class="transfer-video-frame">
+              <video id="transfer-after" muted loop playsinline disablepictureinpicture disableremoteplayback preload="metadata" src="assets/transfer/microwave/after.mp4" aria-label="Microwave thawing: selected success after adding composite-task videos"></video>
+            </div>
+            <p class="transfer-example-note"><span class="transfer-result is-success">Selected success example</span></p>
+            <p class="transfer-instruction"><span>Inference instruction</span><q id="transfer-after-instruction">Pick the cheese from the counter and place it in the microwave. Then turn on the microwave.</q></p>
+          </figure>
+        </div>
+        <p class="transfer-selection-note">Selected baseline failures and post-transfer successes are shown; other evaluation trials include failures.</p>
+        <p id="transfer-pair-note" class="transfer-pair-note">Before and after use the same evaluation seed and trial.</p>
+        <p id="transfer-view-note" class="transfer-view-note" hidden></p>
+        <p id="transfer-status" class="sr-only" aria-live="polite"></p>
+      </div>
+      <p class="transfer-scope">Success and progress summarize evaluation trials, not the selected clips. Transfer remains limited by the policy’s existing atomic skills.</p>
     </section>
 
     <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><p class="citation-note">Draft citation. Publication details will be updated with the paper release.</p><pre><code id="bibtex">@misc{jo2026dreamfree,

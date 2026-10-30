@@ -5,12 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="DreamFree scales imagination-free World Action Models to DROID with a 14B video diffusion backbone. WAM-like training, VLA-like inference: strong video priors and 11Hz real-time control on a single GPU.">
   <meta name="theme-color" content="#ffffff">
-  <title>DreamFree — Future Representation Distillation for World Action Models</title>
+  <title>DreamFree — Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=title-underline">
+  <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
+  <link rel="stylesheet" href="demos.css?v=cloth-failures">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
+  <script src="demos.js?v=editorial-instructions-bowl" defer></script>
   <script src="transfer.js" defer></script>
 </head>
 <body>
@@ -18,33 +21,90 @@
   <header class="site-header">
     <nav class="nav container" aria-label="Main navigation">
       <a class="wordmark" href="#top"><span class="method-name">DreamFree</span></a>
-      <div class="nav-links"><a href="#overview">Overview</a><a href="#method">Method</a><a href="#results">Results</a><a href="#examples">Videos <span aria-hidden="true">↗</span></a></div>
+      <div class="nav-links"><a href="#overview">Overview</a><a href="#method">Method</a><a href="#results">Results</a><a href="#demos">Videos <span aria-hidden="true">↗</span></a></div>
     </nav>
   </header>
 
   <main id="main">
     <section class="hero container" id="top" aria-labelledby="paper-title">
-      <h1 id="paper-title"><span class="project-name"><span class="method-name">DreamFree</span></span><span class="paper-title">Future Representation Distillation<br class="desktop-break"> for World Action Models</span></h1>
+      <h1 id="paper-title"><span class="project-name"><span class="method-name">DreamFree</span></span><span class="paper-title">Future Representation Distillation<br class="desktop-break"> for <span class="title-emphasis">Imagination-free</span> World Action Models</span></h1>
       <p class="positioning-headline">Imagination-free WAMs, scaled to 14B and DROID-scale data.</p>
       <div class="authors" aria-label="Authors">
         <span><a data-author="jaehyeongJo">Jaehyeong Jo</a><sup>*</sup></span><span><a data-author="sangwonJang">Sangwon Jang</a><sup>*</sup></span><span><a data-author="sihyunYu">Sihyun Yu</a></span><span><a data-author="seonghyeonYe">Seonghyeon Ye</a></span><span><a data-author="yekyungNah">Yekyung Nah</a></span><span><a data-author="hojungJung">Hojung Jung</a></span><span><a data-author="kiminLee">Kimin Lee</a><sup>†</sup></span><span><a data-author="sungJuHwang">Sung Ju Hwang</a><sup>†</sup></span>
       </div>
       <div class="affiliation"><a href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img class="kaist-logo" src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></div>
-      <p class="author-note"><sup>*</sup> Project lead <span>·</span> <sup>†</sup> Equal advising</p>
+      <p class="author-note"><sup>*</sup> Equal contribution <span>·</span> <sup>†</sup> Equal advising</p>
       <div class="resource-links">
         <button class="resource unavailable" data-resource="paper" disabled title="arXiv preprint coming soon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 3 10 18M17 3 7 21M4 7l5 5-5 5m16-10-5 5 5 5"/></svg>arXiv <small>soon</small></button>
         <a class="resource" data-resource="code" data-coming-soon="true" href="https://github.com/harryjo97/dreamfree" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></a>
-        <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>DROID Gallery</a>
-        <a class="resource primary" href="#examples"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
+        <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>Gallery</a>
+        <a class="resource primary" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
-      <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 I2V)</span> · Single GPU · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
-      <figure class="teaser">
-        <div class="teaser-media">
-          <video id="teaser-video" muted loop playsinline disablepictureinpicture disableremoteplayback preload="metadata" poster="assets/posters/hat.jpg" aria-label="DreamFree teaser preview: DROID robot hanging a hat"><source src="assets/videos/hat.mp4" type="video/mp4"></video>
-          <span class="preview-label">Teaser preview</span>
+      <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 A14B I2V)</span> · Single GPU <span class="backbone-context">(<  48GB)</span> · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
+      <section class="demo-showcase" id="demos" aria-labelledby="droid-demo-title">
+        <div class="demo-section-top"><h2 class="demo-dataset-title" id="droid-demo-title">DROID <span>(Franka Panda)</span></h2><button id="demo-motion" class="text-button" type="button">Pause videos</button></div>
+        <div class="demo-chapters" role="tablist" aria-label="DROID capabilities">
+          <button id="demo-tab-precision" role="tab" aria-selected="true" aria-controls="demo-stage" data-chapter="precision"><span>01</span> Object manipulation</button>
+          <button id="demo-tab-deformable" role="tab" aria-selected="false" aria-controls="demo-stage" data-chapter="deformable" tabindex="-1"><span>02</span> Deformable objects</button>
+          <button id="demo-tab-language" role="tab" aria-selected="false" aria-controls="demo-stage" data-chapter="language" tabindex="-1"><span>03</span> Following language</button>
         </div>
-        <figcaption>DROID rollout · Placeholder for the final teaser. <button id="teaser-motion" class="media-toggle" type="button">Pause videos</button></figcaption>
-      </figure>
+        <div id="demo-stage" class="demo-stage" role="tabpanel" aria-labelledby="demo-tab-precision" tabindex="0">
+          <div class="demo-story">
+            <span class="demo-story-number" id="demo-number" aria-hidden="true">01</span>
+            <h3 id="demos-title">Object<br>manipulation.</h3>
+            <p id="demo-description">Stand a bottle upright, pour into a pan, pick up bolts, and place a ring around a pole.</p>
+            <div id="demo-choices" class="demo-choices" role="group" aria-label="Choose a demonstration"></div>
+            <p id="demo-note" class="demo-note"></p>
+            <a class="demo-evaluation-link" href="gallery.html">Explore the DROID evaluation <span aria-hidden="true">↗</span></a>
+          </div>
+          <figure class="demo-film demo-film-main">
+            <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span></div>
+            <figcaption><span id="demo-primary-caption">Stand the bottle upright</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
+          </figure>
+          <figure class="demo-film demo-film-secondary">
+            <div class="demo-film-frame"><video id="demo-secondary" muted loop playsinline preload="metadata" src="assets/demos/droid-pour.mp4" poster="assets/demos/droid-pour.jpg" aria-label="Pour the contents of the cup into the pan."></video><span class="demo-film-progress" aria-hidden="true"></span></div>
+            <figcaption><span id="demo-secondary-caption">Pour the contents of the cup into the pan.</span><span id="demo-secondary-outcome" class="demo-outcome" hidden></span></figcaption>
+          </figure>
+        </div>
+        <p class="demo-training-note">Trained on <strong>DROID only</strong> · No task-specific tuning.</p>
+        <p class="sr-only" id="demo-status" aria-live="polite"></p>
+      </section>
+      <section class="compact-abc" id="yam-pilot" aria-labelledby="abc-demo-title">
+          <header class="abc-pilot-intro">
+            <div class="abc-pilot-heading">
+              <h2 class="abc-pilot-label" id="abc-demo-title">ABC-130k <span>(YAM)</span></h2>
+              <p>A small-data pilot, exploring manipulation on another robot.</p>
+            </div>
+            <p class="abc-pilot-data">Trained only on <strong>100 hours of video</strong><span>≈1/35 of ABC-130k’s total duration</span></p>
+          </header>
+          <div class="compact-abc-films">
+            <div class="compact-wide-pair">
+            <figure class="compact-film compact-film-wide">
+              <video muted loop playsinline preload="none" data-src="assets/demos/abc-dish-success-long.mp4?v=ready" data-playback-rate="1.5" poster="assets/demos/abc-dish-success-long.jpg?v=ready" width="1280" height="720" aria-label="Load plates into tabletop dish rack"></video>
+              <figcaption><span>Load plates into tabletop dish rack</span><span class="demo-playback-label">1.5×</span></figcaption>
+            </figure>
+            <figure class="compact-film compact-film-wide">
+              <video muted loop playsinline preload="none" data-src="assets/demos/abc-bottle-drop-zoom.mp4" poster="assets/demos/abc-bottle-drop-zoom.jpg" width="1280" height="720" aria-label="Put the plastic bottles in the bin"></video>
+              <figcaption><span>Put the plastic bottles in the bin</span></figcaption>
+            </figure>
+            </div>
+            <div class="compact-films compact-three">
+            <figure class="compact-film">
+              <video muted loop playsinline preload="none" data-src="assets/demos/abc-pen-cap.mp4" poster="assets/demos/abc-pen-cap.jpg" width="720" height="1280" aria-label="Open the pen cap"></video>
+              <figcaption><span>Open the pen cap</span></figcaption>
+            </figure>
+            <figure class="compact-film">
+              <video muted loop playsinline preload="none" data-src="assets/demos/abc-screw.mp4" poster="assets/demos/abc-screw.jpg" width="720" height="1280" aria-label="Put the screwdriver in the bin"></video>
+              <figcaption><span>Put the screwdriver in the bin</span></figcaption>
+            </figure>
+            <figure class="compact-film">
+              <video muted loop playsinline preload="none" data-src="assets/demos/abc-shirt-fail2.mp4" poster="assets/demos/abc-shirt-fail2.jpg" width="720" height="1280" aria-label="Fold and stack the t-shirts — partially completed"></video>
+              <figcaption><span>Fold and stack the t-shirts</span><span class="compact-outcome">Partially completed</span></figcaption>
+            </figure>
+            </div>
+          </div>
+          <div class="compact-footnote abc-pilot-note"><p>No task-specific tuning · Early examples of what may be possible with limited data.</p><a href="gallery.html#yam">Explore the YAM rollouts <span aria-hidden="true">↗</span></a></div>
+        </section>
       <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>Effectively leveraging video priors, <em>even without generating future videos.</em></p>
     </section>
 
@@ -94,7 +154,7 @@
             <tr><th scope="row">Cosmos Policy</th><td>WAM</td><td>67.1</td></tr>
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span> (14B)</th><td>WAM</td><td>71.7</td></tr>
             <tr class="ours extra-video"><th scope="row" aria-label="DreamFree 14B + extra video">+ extra video</th><td>WAM</td><td><strong>74.4</strong></td></tr>
-          </tbody></table><p class="scaling-note">Baseline scores are reported results from the paper’s RoboCasa-Kitchen comparison.</p></div>
+          </tbody></table><p class="scaling-note">Limited-data setting: like Cosmos Policy, our base model uses only <strong>50 demonstrations per task</strong> for video and action training. “+ extra video” adds video-only data with the same action supervision.</p></div>
           <div class="scaling-evidence"><table class="scaling-table"><caption>Scaling imagination-free WAMs · Success (%)</caption><thead><tr><th scope="col">Method</th><th scope="col">5B</th><th scope="col">14B</th><th scope="col">Gain</th></tr></thead><tbody>
             <tr><th scope="row">Fast-WAM</th><td>44.4</td><td>44.7</td><td>+0.3 pp</td></tr>
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td>58.5</td><td>71.7</td><td>+13.2 pp</td></tr>
@@ -118,12 +178,9 @@
       <article class="finding"><div class="finding-copy"><h3>11 Hz real-time control.<br>One GPU.</h3><p>A 14B video backbone reaches <strong>11 Hz on a single H200</strong>, a <strong>17.8× inference speedup</strong> over DreamZero. Robot actions remain nearly continuous without relying on video step distillation or asynchronous execution to mask inference delays.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
     </section>
 
-    <section class="section section-tint" id="examples" aria-labelledby="examples-title"><div class="container">
-      <div class="section-heading"><h2 id="examples-title"><span class="method-name">DreamFree</span> in action.</h2><p>A closer look at manipulation across tasks and environments.</p><a class="gallery-entry" href="gallery.html">View all 10 DROID tasks <span aria-hidden="true">↗</span></a></div>
-      <div class="gallery-toolbar"><div class="dataset-tabs" role="tablist" aria-label="Video dataset"><button id="tab-droid" role="tab" aria-selected="true" aria-controls="video-panel" data-dataset="droid">DROID <span>Real</span></button><button id="tab-robocasa" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="robocasa" tabindex="-1">RoboCasa</button><button id="tab-yam" role="tab" aria-selected="false" aria-controls="video-panel" data-dataset="yam" tabindex="-1">YAM <span>ABC-130K</span></button></div><button id="play-all" class="text-button" type="button">Pause videos</button></div>
-      <div id="video-panel" role="tabpanel" aria-labelledby="tab-droid" tabindex="0"><p id="dataset-description" class="dataset-description"></p><div id="video-grid" class="video-grid"></div></div>
-      <p id="gallery-status" class="sr-only" aria-live="polite"></p>
-      <noscript><p>JavaScript enables the dataset tabs. <a href="assets/videos/hat.mp4">Watch a DROID rollout here.</a></p></noscript>
+    <section class="section section-tint evaluation-entry" id="examples" aria-labelledby="examples-title"><div class="container">
+      <div><span class="demo-overline">REAL-WORLD GALLERY</span><h2 id="examples-title">More tasks. More rollouts.</h2><p>Full DROID evaluations and a small-data pilot on YAM.</p></div>
+      <a class="resource" href="gallery.html">Open Gallery <span aria-hidden="true">↗</span></a>
     </div></section>
 
     <section class="section container transfer transfer-study" id="video-transfer" aria-labelledby="transfer-title">
@@ -182,11 +239,45 @@
     </section>
 
     <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
-      <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2><p>TBD</p></div>
+      <div class="section-heading"><h2 id="failure-cases-title">Failure Cases</h2></div>
+      <div class="failure-content">
+        <div class="failure-toolbar"><button class="text-button" id="failure-motion" type="button">Pause videos</button></div>
+        <div class="failure-groups">
+          <article class="failure-group failure-droid" aria-labelledby="failure-droid-title">
+            <h3 id="failure-droid-title">DROID <span>(Franka Panda)</span></h3>
+            <figure class="failure-clip failure-portrait">
+              <video muted loop playsinline preload="none" data-src="assets/demos/droid-block-orange-fail.mp4" poster="assets/demos/droid-block-orange-fail.jpg" width="720" height="1280" aria-label="put the orange block in the bowl — picks the red block instead"></video>
+              <figcaption>
+                <p class="failure-instruction">“put the <span class="demo-instruction-color" style="--instruction-color:#b36124">orange</span> block in the bowl”</p>
+                <p class="failure-description">The robot picks the red block instead of the requested orange one. Similar colors can still be confused.</p>
+              </figcaption>
+            </figure>
+          </article>
+          <article class="failure-group failure-yam" aria-labelledby="failure-yam-title">
+            <h3 id="failure-yam-title">ABC-130k <span>(YAM)</span></h3>
+            <div class="failure-pair">
+              <figure class="failure-clip">
+                <video muted loop playsinline preload="none" data-src="assets/gallery/yam/04_fold-t-shirts/20261029_165701.mp4" poster="assets/demos/yam-tshirt-failure.jpg" width="640" height="480" aria-label="Fold and stack the t-shirts — YAM Rollout 11, unsuccessful attempt"></video>
+                <figcaption><p class="failure-instruction">Fold and stack the t-shirts</p><a class="failure-rollout" href="gallery.html#yam-fold-t-shirts">Rollout 11 <span aria-hidden="true">↗</span></a></figcaption>
+              </figure>
+              <figure class="failure-clip">
+                <video muted loop playsinline preload="none" data-src="assets/gallery/yam/05_fold-towels/20261029_170533.mp4" poster="assets/demos/yam-towel-failure.jpg" width="640" height="480" aria-label="Fold and stack the towels — YAM Rollout 02, unsuccessful attempt"></video>
+                <figcaption><p class="failure-instruction">Fold and stack the towels</p><a class="failure-rollout" href="gallery.html#yam-fold-towels">Rollout 02 <span aria-hidden="true">↗</span></a></figcaption>
+              </figure>
+            </div>
+            <p class="failure-observation">This brief pilot shows promise with limited training, but folding shirts and towels remains unreliable. These failures may reflect difficulty understanding the cloth’s state.</p>
+            <p class="failure-open-question">We have not yet investigated whether longer training would resolve these limitations.</p>
+          </article>
+        </div>
+        <div class="failure-pretraining">
+          <h3>Embodied pre-training remains untested.</h3>
+          <p>Computational constraints have so far prevented embodied pre-training, so we have not directly measured its benefits. The gains from video-only training suggest that embodied pre-training could also help, but this remains to be tested.</p>
+        </div>
+      </div>
     </section>
 
     <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><p class="citation-note">Draft citation. Publication details will be updated with the paper release.</p><pre><code id="bibtex">@misc{jo2026dreamfree,
-  title  = {Future Representation Distillation for World Action Models},
+  title  = {Future Representation Distillation for Imagination-free World Action Models},
   author = {Jaehyeong Jo and Sangwon Jang and Sihyun Yu and
             Seonghyeon Ye and Yekyung Nah and Hojung Jung and
             Kimin Lee and Sung Ju Hwang},
@@ -194,7 +285,7 @@
   note   = {Manuscript}
 }</code></pre><p id="copy-status" class="sr-only" aria-live="polite"></p></section>
   </main>
-  <footer class="container footer"><a class="wordmark" href="#top"><span class="method-name">DreamFree</span></a><p>Future Representation Distillation for World Action Models</p><a class="footer-affiliation" href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></footer>
+  <footer class="container footer"><a class="wordmark" href="#top"><span class="method-name">DreamFree</span></a><p>Future Representation Distillation for Imagination-free World Action Models</p><a class="footer-affiliation" href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></footer>
   <dialog id="figure-dialog" aria-label="Enlarged paper figure"><button id="close-figure" aria-label="Close enlarged figure" type="button">×</button><img id="dialog-image" alt=""><p>Press Esc or click outside the figure to close.</p></dialog>
 </body>
 </html>

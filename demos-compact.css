@@ -1,0 +1,71 @@
+/* Grouped clips keep the emphasis on imagination-free control. */
+.compact-demos { max-width: 960px; margin: 40px auto 0; text-align: left; }
+.compact-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
+.compact-heading h2 { color: var(--blue-dark); font-size: 25px; font-weight: 500; line-height: 1.35; letter-spacing: -.4px; }
+.compact-heading .text-button { flex-shrink: 0; padding: 0; font-size: 12px; color: var(--muted); }
+.compact-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.compact-group, .compact-films, .compact-film, .compact-wide-pair { min-width: 0; }
+.compact-group h3, .compact-abc h3 { font-size: 14px; font-weight: 550; color: #536477; line-height: 1.5; }
+.compact-group > h3 { margin-bottom: 10px; }
+.compact-films { display: grid; gap: 10px; align-items: start; }
+.compact-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.compact-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.compact-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.compact-film video { width: 100%; height: auto; aspect-ratio: 9 / 16; object-fit: contain; border-radius: 5px; background: #eceeec; pointer-events: none; }
+.compact-film-wide video { aspect-ratio: 16 / 9; }
+.compact-film figcaption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1px 8px; margin-top: 6px; font-size: 12px; line-height: 1.5; color: #6c7580; }
+.compact-film figcaption > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.compact-outcome { color: #936c4e; font-size: 10px; }
+.compact-color { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--block-color); }
+.compact-language { max-width: 760px; margin: 24px auto 0; }
+.compact-group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.compact-group-heading p { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.compact-footnote { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 5px 16px; margin-top: 13px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.compact-footnote strong { color: #506176; font-weight: 550; }
+.compact-footnote a { font-size: 12px; color: #627c9b; }
+.compact-footnote a:hover { color: var(--blue-dark); text-decoration: underline; text-underline-offset: 3px; }
+.compact-abc { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+.compact-abc h3 > span { color: #88918e; font-weight: 400; }
+.compact-abc-films { display: grid; grid-template-columns: calc(34.5% - 32.7px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.compact-wide-pair { display: grid; gap: 12px; }
+.compact-abc .compact-footnote { margin-top: 12px; }
+
+.failure-example { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 28px; max-width: 580px; margin-inline: auto; }
+.failure-example video { width: 100%; height: auto; aspect-ratio: 9 / 16; object-fit: contain; border-radius: 5px; pointer-events: none; background: #eceeec; }
+.failure-context { font-size: 12px; color: var(--muted); }
+.failure-instruction { font-size: 20px; line-height: 1.4; color: #46566b; }
+.failure-description { font-size: 14px; line-height: 1.7; color: var(--muted); }
+.failure-example .text-button { padding: 0; margin-top: 17px; font-size: 12px; }
+
+/* Shared evaluation link below the results. */
+.demo-overline { color: #7a8490; font: 10px/1.5 "Helvetica Neue", Arial, sans-serif; letter-spacing: 1.7px; font-weight: 600; }
+.evaluation-entry { padding-block: 42px; }
+.evaluation-entry .container { display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+.evaluation-entry h2 { font-size: 29px; line-height: 1.3; font-weight: 500; letter-spacing: -.7px; margin-top: 7px; }
+.evaluation-entry p { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.evaluation-entry .resource { flex-shrink: 0; }
+
+@media (max-width: 650px) {
+  .compact-demos { margin-top: 28px; }
+  .compact-heading { align-items: start; gap: 12px; margin-bottom: 20px; }
+  .compact-heading h2 { font-size: 22px; max-width: 270px; }
+  .compact-heading .text-button { font-size: 11px; margin-top: 5px; }
+  .compact-skills { grid-template-columns: 1fr; gap: 22px; }
+  .compact-skills .compact-two { max-width: 300px; }
+  .compact-four { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 10px; }
+  .compact-language { margin-top: 22px; }
+  .compact-group-heading { flex-wrap: wrap; gap: 2px 12px; }
+  .compact-group-heading p { font-size: 12px; }
+  .compact-film figcaption { font-size: 11px; }
+  .compact-outcome { font-size: 9px; }
+  .compact-abc-films { grid-template-columns: 1fr; gap: 18px; }
+  .compact-wide-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .compact-footnote { font-size: 12px; }
+  .compact-abc { margin-top: 24px; padding-top: 19px; }
+  .failure-example { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .failure-example p + p { margin-top: 10px; }
+  .failure-instruction { font-size: 17px; }
+  .failure-description { font-size: 12px; }
+  .evaluation-entry .container { display: block; }
+  .evaluation-entry .resource { margin-top: 20px; }
+}

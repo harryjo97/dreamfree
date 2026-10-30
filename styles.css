@@ -97,6 +97,15 @@
 .positioning-headline { margin: 18px auto 0; font-size: 22px; line-height: 1.5; letter-spacing: 0; font-weight: 400; color: var(--muted); }
 .project-name { font-size: 48px; letter-spacing: -1px; font-weight: 700; }
 .paper-title { max-width: 980px; margin: 12px auto 0; font-size: 40px; letter-spacing: -.6px; line-height: 1.2; font-weight: 700; }
+.paper-title .title-emphasis {
+  color: var(--blue-dark);
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: #9fb8d5;
+  text-decoration-thickness: .065em;
+  text-underline-offset: .16em;
+  text-decoration-skip-ink: none;
+}
 .authors { font-size: 17px; margin-top: 22px; }
 .author-note { font-size: 14px; }
 .kaist-logo { width: 135px; }

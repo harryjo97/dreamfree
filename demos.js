@@ -36,6 +36,15 @@
     return { chapter: next, clip: chapters[next].clips[0] };
   }
 
+  function previousDemo() {
+    const chapter = chapters[chapterKey];
+    const index = chapter.clips.indexOf(selections[chapterKey]);
+    if (index > 0) return { chapter: chapterKey, clip: chapter.clips[index - 1] };
+    const previous = chapterKeys[(chapterKeys.indexOf(chapterKey) - 1 + chapterKeys.length) % chapterKeys.length];
+    const previousClips = chapters[previous].clips;
+    return { chapter: previous, clip: previousClips[previousClips.length - 1] };
+  }
+
   function chapterLabel(key) {
     return chapters[key].lines.join(' ').replace(/\.$/, '');
   }
@@ -84,6 +93,8 @@
     showClip('demo-secondary', clips[next.clip]);
     const crossesChapter = next.chapter !== chapterKey;
     find('demo-next-clip').setAttribute('aria-label', `Show next ${crossesChapter ? `topic, ${chapterLabel(next.chapter)}` : 'demo'}: ${clips[next.clip].title}`);
+    const previous = previousDemo();
+    find('demo-prev-clip').setAttribute('aria-label', `Show previous ${previous.chapter !== chapterKey ? `topic, ${chapterLabel(previous.chapter)}` : 'demo'}: ${clips[previous.clip].title}`);
     find('demo-next-topic').hidden = !crossesChapter;
     find('demo-next-topic').textContent = crossesChapter ? `Next · ${chapterLabel(next.chapter)}` : '';
     find('demo-choices').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.clip === key)));
@@ -128,6 +139,14 @@
     else {
       selections[next.chapter] = next.clip;
       chooseChapter(next.chapter);
+    }
+  });
+  find('demo-prev-clip').addEventListener('click', () => {
+    const previous = previousDemo();
+    if (previous.chapter === chapterKey) chooseClip(previous.clip);
+    else {
+      selections[previous.chapter] = previous.clip;
+      chooseChapter(previous.chapter);
     }
   });
   document.querySelectorAll('.demo-film video, .compact-abc video, #failure-cases video').forEach(video => {

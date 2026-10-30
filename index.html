@@ -9,11 +9,11 @@
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css?v=inference-figure">
   <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
-  <link rel="stylesheet" href="demos.css?v=aligned-demos">
+  <link rel="stylesheet" href="demos.css?v=demo-arrows">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
-  <script src="demos.js?v=yellow-demo" defer></script>
+  <script src="demos.js?v=demo-arrows" defer></script>
   <script src="transfer.js" defer></script>
 </head>
 <body>
@@ -56,7 +56,10 @@
             <a class="demo-evaluation-link" href="gallery.html">Explore the DROID evaluation <span aria-hidden="true">↗</span></a>
           </div>
           <figure class="demo-film demo-film-main">
-            <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
+            <div class="demo-film-navigation">
+              <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
+              <button id="demo-prev-clip" class="demo-next-cue demo-prev-cue" type="button" aria-label="Show previous demo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5"/></svg></button>
+            </div>
             <figcaption><span id="demo-primary-caption">Stand the bottle upright</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
           <figure class="demo-film demo-film-secondary">
@@ -264,15 +267,11 @@
                 <figcaption><p class="failure-instruction">Fold and stack the t-shirts</p><a class="failure-rollout" href="gallery.html#yam-fold-t-shirts">Rollout 11 <span aria-hidden="true">↗</span></a></figcaption>
               </figure>
               <figure class="failure-clip">
-                <video muted loop playsinline preload="none" data-src="assets/gallery/yam/05_fold-towels/20261029_170533.mp4" poster="assets/demos/yam-towel-failure.jpg" width="640" height="480" aria-label="Fold and stack the towels — YAM Rollout 02, unsuccessful attempt"></video>
-                <figcaption><p class="failure-instruction">Fold and stack the towels</p><a class="failure-rollout" href="gallery.html#yam-fold-towels">Rollout 02 <span aria-hidden="true">↗</span></a></figcaption>
-              </figure>
-              <figure class="failure-clip">
                 <video muted loop playsinline preload="none" data-src="assets/gallery/yam/03_erase-whiteboard/20261029_142822.mp4" poster="assets/demos/yam-whiteboard-failure.jpg" width="640" height="480" aria-label="Erase the whiteboard — YAM Rollout 01, unsuccessful attempt"></video>
                 <figcaption><p class="failure-instruction">Erase the whiteboard</p><a class="failure-rollout" href="gallery.html#yam-erase-whiteboard">Rollout 01 <span aria-hidden="true">↗</span></a></figcaption>
               </figure>
             </div>
-            <p class="failure-observation">This brief pilot shows promise with limited training, but folding and erasing remain unreliable. The folding failures may reflect difficulty understanding the cloth’s state.</p>
+            <p class="failure-observation">This brief pilot shows promise with limited training, but folding and erasing remain unreliable. The t-shirt folding failure may reflect difficulty understanding the cloth’s state.</p>
             <p class="failure-open-question">We have not yet investigated whether longer training would resolve these limitations.</p>
           </article>
         </div>

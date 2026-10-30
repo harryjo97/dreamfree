@@ -8,7 +8,7 @@ window.DREAMFREE = {
     sangwonJang: 'https://agwmon.github.io/',   // Sangwon Jang
     sihyunYu: 'https://sihyun.me/',      // Sihyun Yu
     seonghyeonYe: 'https://seonghyeonye.github.io/',  // Seonghyeon Ye
-    yekyungNah: '',    // Yekyung Nah
+    yekyungNah: 'https://www.linkedin.com/in/yekyung-nah-0677322b4/',    // Yekyung Nah
     hojungJung: 'https://scholar.google.com/citations?user=Cq4lgFgAAAAJ',    // Hojung Jung
     kiminLee: 'https://sites.google.com/view/kiminlee',      // Kimin Lee
     sungJuHwang: 'http://www.sungjuhwang.com/'    // Sung Ju Hwang

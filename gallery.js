@@ -5,12 +5,12 @@
     droid: {
       label: 'DROID', tasks: window.DROID_GALLERY,
       description: 'Ten tasks. Five trials per policy. Explore every rollout.',
-      training: 'DreamFree: trained on DROID only · No task-specific tuning.'
+      training: 'DreamFree: trained on DROID only · No task-specific adaptation.'
     },
     yam: {
       label: 'ABC-130k (YAM)', tasks: window.YAM_GALLERY,
       description: 'A small-data pilot on YAM. Six tasks, 51 rollouts, filmed from the top view.',
-      training: 'Trained only on 100 hours of ABC-130k video (≈1/35 of its total duration) · No task-specific tuning.'
+      training: 'Trained only on 100 hours of ABC-130k video (≈1/35 of its total duration) · No task-specific adaptation.'
     }
   };
   const models = { ours: 'DreamFree', dreamzero: 'DreamZero', pi: 'π₀.₅' };

@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="DreamFree scales imagination-free World Action Models to DROID with a 14B video diffusion backbone. WAM-like training, VLA-like inference: strong video priors and 11Hz real-time control on a single GPU.">
   <meta name="theme-color" content="#ffffff">
-  <title>DreamFree — Future Representation Distillation for Imagination-free World Action Models</title>
+  <title>DreamFree: Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=inference-figure">
+  <link rel="stylesheet" href="styles.css?v=title-color">
   <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
   <link rel="stylesheet" href="demos.css?v=arrow-only-navigation">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
-  <script src="demos.js?v=demo-arrows" defer></script>
+  <script src="demos.js?v=chapter-headings" defer></script>
   <script src="transfer.js" defer></script>
 </head>
 <body>
@@ -27,7 +27,7 @@
 
   <main id="main">
     <section class="hero container" id="top" aria-labelledby="paper-title">
-      <h1 id="paper-title"><span class="project-name"><span class="method-name">DreamFree</span></span><span class="paper-title">Future Representation Distillation<br class="desktop-break"> for <span class="title-emphasis">Imagination-free</span> World Action Models</span></h1>
+      <h1 id="paper-title"><span class="paper-title"><span class="method-name">DreamFree</span>: Future Representation Distillation<br>for <span class="title-emphasis">Imagination-free</span> World Action Models</span></h1>
       <p class="positioning-headline">Imagination-free WAMs, scaled to 14B and DROID-scale data.</p>
       <div class="authors" aria-label="Authors">
         <span><a data-author="jaehyeongJo">Jaehyeong Jo</a><sup>*</sup></span><span><a data-author="sangwonJang">Sangwon Jang</a><sup>*</sup></span><span><a data-author="sihyunYu">Sihyun Yu</a></span><span><a data-author="seonghyeonYe">Seonghyeon Ye</a></span><span><a data-author="yekyungNah">Yekyung Nah</a></span><span><a data-author="hojungJung">Hojung Jung</a></span><span><a data-author="kiminLee">Kimin Lee</a><sup>†</sup></span><span><a data-author="sungJuHwang">Sung Ju Hwang</a><sup>†</sup></span>
@@ -40,17 +40,17 @@
         <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>Gallery</a>
         <a class="resource primary" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
-      <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 A14B I2V)</span> · Single GPU <span class="backbone-context">(<  48GB)</span> · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
+      <p class="deployment-summary"><strong>14B video backbone <span class="backbone-context">(Wan 2.2 A14B I2V)</span> · Single GPU <span class="backbone-context">(<  48GB)</span> · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
       <section class="demo-showcase" id="demos" aria-labelledby="droid-demo-title">
         <div class="demo-section-top"><h2 class="demo-dataset-title" id="droid-demo-title">DROID <span>(Franka Panda)</span></h2><button id="demo-motion" class="text-button" type="button">Pause videos</button></div>
         <div id="demo-stage" class="demo-stage" role="group" aria-labelledby="demos-title">
           <div class="demo-story">
             <span class="demo-story-number" id="demo-number" aria-hidden="true">01</span>
-            <h3 id="demos-title">Object<br>manipulation.</h3>
-            <p id="demo-description">Stand a bottle upright, pour into a pan, pick up bolts, and place a ring around a pole.</p>
+            <h3 id="demos-title">Precise object<br>manipulation.</h3>
+            <p id="demo-description"><strong>Stand a bottle upright</strong>, <strong>pour into a pan</strong>, <strong>pick up bolts</strong>, and <strong>place a ring around a pole.</strong></p>
             <div class="demo-selection-bar">
               <div id="demo-choices" class="demo-choices" role="group" aria-label="Choose a demonstration"></div>
-              <button id="demo-next-chapter" class="demo-next-chapter" type="button" aria-label="Next topic: Deformable objects" title="Next topic: Deformable objects"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+              <button id="demo-next-chapter" class="demo-next-chapter" type="button" aria-label="Next topic: Deformable object manipulation" title="Next topic: Deformable object manipulation"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
             </div>
             <p id="demo-note" class="demo-note"></p>
             <a class="demo-evaluation-link" href="gallery.html">Explore the DROID evaluation <span aria-hidden="true">↗</span></a>
@@ -70,7 +70,7 @@
             <figcaption><span id="demo-secondary-caption">Pour the contents of the cup into the pan.</span><span id="demo-next-topic" class="demo-next-topic" hidden></span><span id="demo-secondary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
         </div>
-        <p class="demo-training-note">Trained on <strong>DROID only</strong> · No task-specific tuning.</p>
+        <p class="demo-training-note">Trained on <strong>DROID only</strong> · No task-specific adaptation.</p>
         <p class="sr-only" id="demo-status" aria-live="polite"></p>
       </section>
       <section class="compact-abc" id="yam-pilot" aria-labelledby="abc-demo-title">
@@ -107,7 +107,7 @@
             </figure>
             </div>
           </div>
-          <div class="compact-footnote abc-pilot-note"><p>No task-specific tuning · Early examples of what may be possible with limited data.</p><a href="gallery.html#yam">Explore the YAM rollouts <span aria-hidden="true">↗</span></a></div>
+          <div class="compact-footnote abc-pilot-note"><p>Trained on <strong>ABC-130k only</strong> · No task-specific adaptation.</p><a href="gallery.html#yam">Explore the YAM rollouts <span aria-hidden="true">↗</span></a></div>
         </section>
       <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>Effectively leveraging video priors, <em>even without generating future videos.</em></p>
     </section>

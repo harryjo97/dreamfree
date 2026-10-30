@@ -14,9 +14,9 @@
     clips[color] = { file: `droid-block-${color}`, label: color[0].toUpperCase() + color.slice(1), title: `“put the ${color} block in the bowl”`, color: hex, colorName: color };
   });
   const chapters = {
-    precision: { number: '01', lines: ['Object', 'manipulation.'], description: 'Stand a bottle upright, pour into a pan, pick up bolts, and place a ring around a pole.', clips: ['bottle', 'pour', 'bolts', 'ring'], note: '' },
-    deformable: { number: '02', lines: ['Deformable', 'objects.'], description: 'Hang a hat on a tripod and fold a towel.', clips: ['hat', 'towel'], note: '' },
-    language: { number: '03', lines: ['Following', 'language.'], description: '“put the <color> block in the bowl” in the same setting, with different requested colors.', clips: ['red', 'blue', 'green', 'yellow'], note: '' }
+    precision: { number: '01', lines: ['Precise object', 'manipulation.'], descriptionHtml: '<strong>Stand a bottle upright</strong>, <strong>pour into a pan</strong>, <strong>pick up bolts</strong>, and <strong>place a ring around a pole.</strong>', clips: ['bottle', 'pour', 'bolts', 'ring'], note: '' },
+    deformable: { number: '02', lines: ['Deformable object', 'manipulation.'], descriptionHtml: '<strong>Hang the hat on the tripod</strong> and <strong>fold the towel.</strong>', clips: ['hat', 'towel'], note: '' },
+    language: { number: '03', lines: ['Language', 'following.'], descriptionHtml: '<strong>put the &lt;color&gt; block in the bowl</strong>', clips: ['red', 'blue', 'green', 'yellow'], note: '' }
   };
   const chapterKeys = Object.keys(chapters);
   const selections = { precision: 'bottle', deformable: 'hat', language: 'red' };
@@ -110,7 +110,7 @@
     find('demo-number').textContent = chapter.number;
     const title = find('demos-title');
     title.replaceChildren(chapter.lines[0], document.createElement('br'), chapter.lines[1]);
-    find('demo-description').textContent = chapter.description;
+    find('demo-description').innerHTML = chapter.descriptionHtml;
     find('demo-note').textContent = chapter.note;
     find('demo-note').hidden = !chapter.note;
     const choices = find('demo-choices');

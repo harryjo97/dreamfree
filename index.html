@@ -7,13 +7,13 @@
   <meta name="theme-color" content="#ffffff">
   <title>DreamFree — Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=title-underline">
+  <link rel="stylesheet" href="styles.css?v=inference-figure">
   <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
-  <link rel="stylesheet" href="demos.css?v=cloth-failures">
+  <link rel="stylesheet" href="demos.css?v=aligned-demos">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
-  <script src="demos.js?v=editorial-instructions-bowl" defer></script>
+  <script src="demos.js?v=yellow-demo" defer></script>
   <script src="transfer.js" defer></script>
 </head>
 <body>
@@ -43,27 +43,25 @@
       <p class="deployment-summary"><strong>14B backbone <span class="backbone-context">(Wan 2.2 A14B I2V)</span> · Single GPU <span class="backbone-context">(<  48GB)</span> · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
       <section class="demo-showcase" id="demos" aria-labelledby="droid-demo-title">
         <div class="demo-section-top"><h2 class="demo-dataset-title" id="droid-demo-title">DROID <span>(Franka Panda)</span></h2><button id="demo-motion" class="text-button" type="button">Pause videos</button></div>
-        <div class="demo-chapters" role="tablist" aria-label="DROID capabilities">
-          <button id="demo-tab-precision" role="tab" aria-selected="true" aria-controls="demo-stage" data-chapter="precision"><span>01</span> Object manipulation</button>
-          <button id="demo-tab-deformable" role="tab" aria-selected="false" aria-controls="demo-stage" data-chapter="deformable" tabindex="-1"><span>02</span> Deformable objects</button>
-          <button id="demo-tab-language" role="tab" aria-selected="false" aria-controls="demo-stage" data-chapter="language" tabindex="-1"><span>03</span> Following language</button>
-        </div>
-        <div id="demo-stage" class="demo-stage" role="tabpanel" aria-labelledby="demo-tab-precision" tabindex="0">
+        <div id="demo-stage" class="demo-stage" role="group" aria-labelledby="demos-title">
           <div class="demo-story">
             <span class="demo-story-number" id="demo-number" aria-hidden="true">01</span>
             <h3 id="demos-title">Object<br>manipulation.</h3>
             <p id="demo-description">Stand a bottle upright, pour into a pan, pick up bolts, and place a ring around a pole.</p>
-            <div id="demo-choices" class="demo-choices" role="group" aria-label="Choose a demonstration"></div>
+            <div class="demo-selection-bar">
+              <div id="demo-choices" class="demo-choices" role="group" aria-label="Choose a demonstration"></div>
+              <button id="demo-next-chapter" class="demo-next-chapter" type="button" aria-label="Next topic: Deformable objects" title="Next topic: Deformable objects"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+            </div>
             <p id="demo-note" class="demo-note"></p>
             <a class="demo-evaluation-link" href="gallery.html">Explore the DROID evaluation <span aria-hidden="true">↗</span></a>
           </div>
           <figure class="demo-film demo-film-main">
-            <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span></div>
+            <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
             <figcaption><span id="demo-primary-caption">Stand the bottle upright</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
           <figure class="demo-film demo-film-secondary">
-            <div class="demo-film-frame"><video id="demo-secondary" muted loop playsinline preload="metadata" src="assets/demos/droid-pour.mp4" poster="assets/demos/droid-pour.jpg" aria-label="Pour the contents of the cup into the pan."></video><span class="demo-film-progress" aria-hidden="true"></span></div>
-            <figcaption><span id="demo-secondary-caption">Pour the contents of the cup into the pan.</span><span id="demo-secondary-outcome" class="demo-outcome" hidden></span></figcaption>
+            <button id="demo-next-clip" class="demo-film-frame demo-film-next" type="button" aria-label="Show next demo: Pour the contents of the cup into the pan."><video id="demo-secondary" muted loop playsinline preload="metadata" src="assets/demos/droid-pour.mp4" poster="assets/demos/droid-pour.jpg" aria-label="Pour the contents of the cup into the pan."></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span><span class="demo-next-cue" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></button>
+            <figcaption><span id="demo-secondary-caption">Pour the contents of the cup into the pan.</span><span id="demo-next-topic" class="demo-next-topic" hidden></span><span id="demo-secondary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
         </div>
         <p class="demo-training-note">Trained on <strong>DROID only</strong> · No task-specific tuning.</p>
@@ -75,30 +73,30 @@
               <h2 class="abc-pilot-label" id="abc-demo-title">ABC-130k <span>(YAM)</span></h2>
               <p>A small-data pilot, exploring manipulation on another robot.</p>
             </div>
-            <p class="abc-pilot-data">Trained only on <strong>100 hours of video</strong><span>≈1/35 of ABC-130k’s total duration</span></p>
+            <p class="abc-pilot-data">Trained on filtered <strong>100-hour subset</strong> of ABC-130k<span>≈1/35 of ABC-130k’s total duration</span></p>
           </header>
           <div class="compact-abc-films">
             <div class="compact-wide-pair">
             <figure class="compact-film compact-film-wide">
-              <video muted loop playsinline preload="none" data-src="assets/demos/abc-dish-success-long.mp4?v=ready" data-playback-rate="1.5" poster="assets/demos/abc-dish-success-long.jpg?v=ready" width="1280" height="720" aria-label="Load plates into tabletop dish rack"></video>
-              <figcaption><span>Load plates into tabletop dish rack</span><span class="demo-playback-label">1.5×</span></figcaption>
+              <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-dish-success-long.mp4?v=ready" data-playback-rate="1.5" poster="assets/demos/abc-dish-success-long.jpg?v=ready" width="1280" height="720" aria-label="Load plates into tabletop dish rack"></video><span class="demo-speed-badge" aria-label="Playback speed: 1.5×">1.5×</span></div>
+              <figcaption><span>Load plates into tabletop dish rack</span></figcaption>
             </figure>
             <figure class="compact-film compact-film-wide">
-              <video muted loop playsinline preload="none" data-src="assets/demos/abc-bottle-drop-zoom.mp4" poster="assets/demos/abc-bottle-drop-zoom.jpg" width="1280" height="720" aria-label="Put the plastic bottles in the bin"></video>
+              <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-bottle-drop-zoom.mp4" poster="assets/demos/abc-bottle-drop-zoom.jpg" width="1280" height="720" aria-label="Put the plastic bottles in the bin"></video><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
               <figcaption><span>Put the plastic bottles in the bin</span></figcaption>
             </figure>
             </div>
             <div class="compact-films compact-three">
             <figure class="compact-film">
-              <video muted loop playsinline preload="none" data-src="assets/demos/abc-pen-cap.mp4" poster="assets/demos/abc-pen-cap.jpg" width="720" height="1280" aria-label="Open the pen cap"></video>
+              <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-pen-cap.mp4" poster="assets/demos/abc-pen-cap.jpg" width="720" height="1280" aria-label="Open the pen cap"></video><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
               <figcaption><span>Open the pen cap</span></figcaption>
             </figure>
             <figure class="compact-film">
-              <video muted loop playsinline preload="none" data-src="assets/demos/abc-screw.mp4" poster="assets/demos/abc-screw.jpg" width="720" height="1280" aria-label="Put the screwdriver in the bin"></video>
+              <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-screw.mp4" poster="assets/demos/abc-screw.jpg" width="720" height="1280" aria-label="Put the screwdriver in the bin"></video><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
               <figcaption><span>Put the screwdriver in the bin</span></figcaption>
             </figure>
             <figure class="compact-film">
-              <video muted loop playsinline preload="none" data-src="assets/demos/abc-shirt-fail2.mp4" poster="assets/demos/abc-shirt-fail2.jpg" width="720" height="1280" aria-label="Fold and stack the t-shirts — partially completed"></video>
+              <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-shirt-fail2.mp4" poster="assets/demos/abc-shirt-fail2.jpg" width="720" height="1280" aria-label="Fold and stack the t-shirts — partially completed"></video><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
               <figcaption><span>Fold and stack the t-shirts</span><span class="compact-outcome">Partially completed</span></figcaption>
             </figure>
             </div>
@@ -139,7 +137,12 @@
       <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge DreamFree method diagram"><img src="assets/figures/method_v2.png" width="2400" height="615" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption><strong><span class="method-name">DreamFree</span> architecture.</strong> Future frames supervise representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
       
       <div class="method-steps"><article><span class="step-label">STAGE 1</span><h3>Distill predictive representations</h3><p>A frozen video diffusion teacher observes current and future frames. An alignment loss trains the current-frame features to predict the teacher’s future-aware representations, alongside the original video generative objective. This directly supervises the features used for control and needs no action labels.</p></article><article><span class="step-label">STAGE 2</span><h3>Learn to read out actions</h3><p>Using action-labeled robot demonstrations, a readout module extracts action-relevant features from the visual encoder. An action decoder maps these features to executable action chunks.</p></article></div>
-      <div class="inference"><span>AT INFERENCE</span><p>Current observation <b aria-hidden="true">→</b> Predictive visual encoder <b aria-hidden="true">→</b> Action module <b aria-hidden="true">→</b> Robot action</p><small>Predictive video knowledge in a single visual pass, followed by action decoding.</small></div>
+      <div class="inference" id="inference"><span>AT INFERENCE</span>
+        <figure class="paper-figure inference-figure">
+          <button class="figure-zoom" type="button" aria-label="Enlarge DreamFree inference diagram"><img src="assets/figures/inference.png" width="2400" height="307" loading="lazy" alt="Current frame f zero and language instruction ell enter a 5B or 14B Visual Encoder in one forward pass. Readout feeds a 1B Action DiT, which denoises an action chunk a one through a h."></button>
+          <figcaption>The <strong>Visual Encoder</strong> processes the current frame <span class="math-symbol"><i>f</i><sub>0</sub></span> and instruction <span class="math-symbol">ℓ</span> in one forward pass. <strong>Readout</strong> extracts action-relevant features, and the 1B <strong>Action DiT</strong> denoises the action chunk <span class="math-symbol"><i>a</i><sub>1</sub>, …, <i>a</i><sub>h</sub></span>.<br>No future-video generation is needed.</figcaption>
+        </figure>
+      </div>
     </div></section>
 
     <section class="section container" id="results" aria-labelledby="results-title">
@@ -255,7 +258,7 @@
           </article>
           <article class="failure-group failure-yam" aria-labelledby="failure-yam-title">
             <h3 id="failure-yam-title">ABC-130k <span>(YAM)</span></h3>
-            <div class="failure-pair">
+            <div class="failure-examples">
               <figure class="failure-clip">
                 <video muted loop playsinline preload="none" data-src="assets/gallery/yam/04_fold-t-shirts/20261029_165701.mp4" poster="assets/demos/yam-tshirt-failure.jpg" width="640" height="480" aria-label="Fold and stack the t-shirts — YAM Rollout 11, unsuccessful attempt"></video>
                 <figcaption><p class="failure-instruction">Fold and stack the t-shirts</p><a class="failure-rollout" href="gallery.html#yam-fold-t-shirts">Rollout 11 <span aria-hidden="true">↗</span></a></figcaption>
@@ -264,8 +267,12 @@
                 <video muted loop playsinline preload="none" data-src="assets/gallery/yam/05_fold-towels/20261029_170533.mp4" poster="assets/demos/yam-towel-failure.jpg" width="640" height="480" aria-label="Fold and stack the towels — YAM Rollout 02, unsuccessful attempt"></video>
                 <figcaption><p class="failure-instruction">Fold and stack the towels</p><a class="failure-rollout" href="gallery.html#yam-fold-towels">Rollout 02 <span aria-hidden="true">↗</span></a></figcaption>
               </figure>
+              <figure class="failure-clip">
+                <video muted loop playsinline preload="none" data-src="assets/gallery/yam/03_erase-whiteboard/20261029_142822.mp4" poster="assets/demos/yam-whiteboard-failure.jpg" width="640" height="480" aria-label="Erase the whiteboard — YAM Rollout 01, unsuccessful attempt"></video>
+                <figcaption><p class="failure-instruction">Erase the whiteboard</p><a class="failure-rollout" href="gallery.html#yam-erase-whiteboard">Rollout 01 <span aria-hidden="true">↗</span></a></figcaption>
+              </figure>
             </div>
-            <p class="failure-observation">This brief pilot shows promise with limited training, but folding shirts and towels remains unreliable. These failures may reflect difficulty understanding the cloth’s state.</p>
+            <p class="failure-observation">This brief pilot shows promise with limited training, but folding and erasing remain unreliable. The folding failures may reflect difficulty understanding the cloth’s state.</p>
             <p class="failure-open-question">We have not yet investigated whether longer training would resolve these limitations.</p>
           </article>
         </div>

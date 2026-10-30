@@ -10,7 +10,7 @@
     hat: { file: 'droid-hat', title: 'Hang the hat on the tripod', label: 'Hat' },
     towel: { file: 'droid-fold-towel', title: 'Fold the towel', label: 'Towel' }
   };
-  Object.entries({ red: '#b54235', blue: '#35699a', green: '#48734a', yellow: '#8b6b0b' }).forEach(([color, hex]) => {
+  Object.entries({ red: '#b54235', blue: '#35699a', green: '#48734a', yellow: '#d4a900' }).forEach(([color, hex]) => {
     clips[color] = { file: `droid-block-${color}`, label: color[0].toUpperCase() + color.slice(1), title: `“put the ${color} block in the bowl”`, color: hex, colorName: color };
   });
   const chapters = {
@@ -18,11 +18,27 @@
     deformable: { number: '02', lines: ['Deformable', 'objects.'], description: 'Hang a hat on a tripod and fold a towel.', clips: ['hat', 'towel'], note: '' },
     language: { number: '03', lines: ['Following', 'language.'], description: '“put the <color> block in the bowl” in the same setting, with different requested colors.', clips: ['red', 'blue', 'green', 'yellow'], note: '' }
   };
-  const tabs = [...document.querySelectorAll('[data-chapter]')];
+  const chapterKeys = Object.keys(chapters);
   const selections = { precision: 'bottle', deformable: 'hat', language: 'red' };
   let chapterKey = 'precision';
   const find = id => document.getElementById(id);
   const asset = (clip, extension) => `assets/demos/${clip.file}.${extension}`;
+
+  function nextChapterKey() {
+    return chapterKeys[(chapterKeys.indexOf(chapterKey) + 1) % chapterKeys.length];
+  }
+
+  function nextDemo() {
+    const chapter = chapters[chapterKey];
+    const index = chapter.clips.indexOf(selections[chapterKey]);
+    if (index + 1 < chapter.clips.length) return { chapter: chapterKey, clip: chapter.clips[index + 1] };
+    const next = nextChapterKey();
+    return { chapter: next, clip: chapters[next].clips[0] };
+  }
+
+  function chapterLabel(key) {
+    return chapters[key].lines.join(' ').replace(/\.$/, '');
+  }
 
   function renderInstruction(caption, clip) {
     if (!clip.colorName) { caption.textContent = clip.title; return; }
@@ -63,19 +79,23 @@
 
   function chooseClip(key) {
     selections[chapterKey] = key;
-    const chapter = chapters[chapterKey];
-    const secondary = chapter.clips[(chapter.clips.indexOf(key) + 1) % chapter.clips.length];
+    const next = nextDemo();
     showClip('demo-primary', clips[key]);
-    showClip('demo-secondary', clips[secondary]);
+    showClip('demo-secondary', clips[next.clip]);
+    const crossesChapter = next.chapter !== chapterKey;
+    find('demo-next-clip').setAttribute('aria-label', `Show next ${crossesChapter ? `topic, ${chapterLabel(next.chapter)}` : 'demo'}: ${clips[next.clip].title}`);
+    find('demo-next-topic').hidden = !crossesChapter;
+    find('demo-next-topic').textContent = crossesChapter ? `Next · ${chapterLabel(next.chapter)}` : '';
     find('demo-choices').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.clip === key)));
-    find('demo-status').textContent = `Showing ${clips[key].title} and ${clips[secondary].title}.`;
+    find('demo-status').textContent = `${chapterLabel(chapterKey)}. Showing ${clips[key].title} Next: ${clips[next.clip].title}`;
   }
 
   function chooseChapter(key) {
     chapterKey = key;
     const chapter = chapters[key];
-    tabs.forEach(tab => { const selected = tab.dataset.chapter === key; tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1; });
-    find('demo-stage').setAttribute('aria-labelledby', `demo-tab-${key}`);
+    const nextLabel = `Next topic: ${chapterLabel(nextChapterKey())}`;
+    find('demo-next-chapter').setAttribute('aria-label', nextLabel);
+    find('demo-next-chapter').title = nextLabel;
     find('demo-number').textContent = chapter.number;
     const title = find('demos-title');
     title.replaceChildren(chapter.lines[0], document.createElement('br'), chapter.lines[1]);
@@ -97,17 +117,18 @@
     chooseClip(selections[key]);
   }
 
-  tabs.forEach((tab, index) => {
-    tab.addEventListener('click', () => chooseChapter(tab.dataset.chapter));
-    tab.addEventListener('keydown', event => {
-      let next;
-      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
-      if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
-      if (event.key === 'Home') next = 0;
-      if (event.key === 'End') next = tabs.length - 1;
-      if (next === undefined) return;
-      event.preventDefault(); tabs[next].focus(); chooseChapter(tabs[next].dataset.chapter);
-    });
+  find('demo-next-chapter').addEventListener('click', () => {
+    const next = nextChapterKey();
+    selections[next] = chapters[next].clips[0];
+    chooseChapter(next);
+  });
+  find('demo-next-clip').addEventListener('click', () => {
+    const next = nextDemo();
+    if (next.chapter === chapterKey) chooseClip(next.clip);
+    else {
+      selections[next.chapter] = next.clip;
+      chooseChapter(next.chapter);
+    }
   });
   document.querySelectorAll('.demo-film video, .compact-abc video, #failure-cases video').forEach(video => {
     if (video.dataset.playbackRate) {

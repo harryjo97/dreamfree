@@ -16,16 +16,17 @@
 .demo-section-top { display: flex; align-items: center; justify-content: space-between; }
 .demo-overline { color: #7a8490; font: 10px/1.5 "Helvetica Neue", Arial, sans-serif; letter-spacing: 1.7px; font-weight: 600; }
 .demo-section-top .text-button { font-size: 12px; padding-block: 0; }
-.demo-chapters { display: flex; gap: 32px; border-bottom: 1px solid var(--line); margin-top: 14px; }
-.demo-chapters button { padding: 12px 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; font-size: 15px; color: var(--muted); }
-.demo-chapters button > span { font: 10px "Helvetica Neue", Arial, sans-serif; margin-right: 8px; opacity: .7; }
-.demo-chapters button[aria-selected="true"] { color: var(--blue-dark); border-color: var(--blue-dark); }
-.demo-stage { display: grid; grid-template-columns: 1.15fr 1fr .8fr; align-items: center; gap: 28px; padding: 26px 0 14px; }
+.demo-stage { display: grid; grid-template-columns: 1.15fr 1fr .8fr; align-items: center; gap: 28px; margin-top: 16px; padding: 26px 0 14px; border-top: 1px solid var(--line); }
 .demo-story { padding: 10px 5px 10px 0; }
 .demo-story-number { display: block; margin-bottom: 16px; color: #b6c6d9; font-size: 40px; font-weight: 400; line-height: 1; letter-spacing: -1px; }
 .demo-story h3 { font-size: 33px; letter-spacing: -.8px; line-height: 1.15; font-weight: 500; color: var(--blue-dark); }
 .demo-story > p { font-size: 14px; color: #67717e; line-height: 1.7; margin-top: 15px; }
-.demo-choices { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+#demo-description { min-height: 3.4em; }
+.demo-selection-bar { display: flex; align-items: flex-end; gap: 12px; margin-top: 20px; }
+.demo-choices { display: flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; gap: 7px; }
+.demo-next-chapter { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 1px solid #dbe1e9; border-radius: 5px; background: #f7f9fc; color: var(--blue-dark); }
+.demo-next-chapter:hover { border-color: #96aac4; background: #edf3fb; }
+.demo-next-chapter svg, .demo-next-cue svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .demo-choices button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #dbe1e9; border-radius: 5px; color: #667080; background: white; padding: 6px 10px; font-size: 12px; line-height: 1.5; }
 .demo-choices button:hover { border-color: #96aac4; }
 .demo-choices button[aria-pressed="true"] { color: var(--blue-dark); border-color: #a4b9d2; background: #eff4fb; }
@@ -37,19 +38,28 @@
 .demo-film-main { align-self: start; }
 .demo-film-secondary { align-self: end; margin-bottom: 12px; }
 .demo-film-frame { position: relative; overflow: hidden; border-radius: 6px; background: #e9e9e7; }
+.demo-film-next { display: block; width: 100%; padding: 0; border: 0; text-align: left; }
+.demo-next-cue { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #ffffff8c; border-radius: 5px; color: #34455d; background: #ffffffe6; pointer-events: none; }
+.demo-film-next:hover .demo-next-cue { color: var(--blue-dark); background: #fff; }
+.demo-film-next:focus-visible { outline: 3px solid #77a3dc; outline-offset: 5px; }
+.demo-next-topic { grid-row: 2; font-size: 11px; line-height: 16px; color: #7b8b9e; }
+.demo-video-frame { position: relative; overflow: hidden; border-radius: 5px; background: #eceeec; }
+.demo-film-frame video, .demo-video-frame video { display: block; }
+.demo-speed-badge { position: absolute; right: 10px; bottom: 10px; z-index: 1; padding: 4px 8px; border: 1px solid #ffffff2e; border-radius: 5px; color: #fff; background: #4b5058e6; font: 600 12px/1.1 "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; pointer-events: none; }
 .demo-film video { width: 100%; height: auto; aspect-ratio: 9 / 16; object-fit: contain; }
 .demo-film-progress { position: absolute; height: 2px; bottom: 0; left: 0; width: 100%; background: #ffffffb8; transform: scaleX(var(--played, 0)); transform-origin: left; pointer-events: none; }
-.demo-film figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; font-size: 12px; line-height: 1.5; margin-top: 10px; color: #586576; }
+.demo-film figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; min-height: 36px; font-size: 12px; line-height: 1.5; margin-top: 10px; color: #586576; }
+.demo-film-secondary figcaption { display: grid; grid-template-rows: 36px 16px; align-items: start; row-gap: 4px; }
+#demo-secondary-caption { grid-row: 1; }
 .demo-outcome { font-size: 10px; color: #9a6946; }
 .demo-instruction-color { color: var(--instruction-color); font-weight: 650; }
-.demo-playback-label { color: var(--muted); font-size: 10px; }
 .failure-content { max-width: 960px; margin-inline: auto; }
 .failure-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .failure-toolbar .text-button { padding: 0; font-size: 12px; }
 .failure-groups { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; align-items: start; }
 .failure-group > h3 { margin-bottom: 14px; color: var(--blue-dark); font-size: 18px; font-weight: 550; line-height: 1.4; }
 .failure-group > h3 > span { color: var(--muted); font-size: 13px; font-weight: 400; }
-.failure-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.failure-examples { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .failure-clip { min-width: 0; }
 .failure-clip video { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 6px; background: #eceeec; }
 .failure-portrait video { aspect-ratio: 9 / 16; }
@@ -88,11 +98,13 @@
   .demo-stage { padding-inline: 12px; gap: 32px; }
 }
 @media(max-width:900px) {
+  #demo-description { min-height: 5.1em; }
   .demo-stage { grid-template-columns: .95fr 1fr .8fr; gap: 22px; }
   .demo-story h3 { font-size: 29px; }
   .demo-story-number { font-size: 36px; margin-bottom: 14px; }
   .demo-story > p { font-size: 13px; margin-top: 13px; }
-  .demo-choices { gap: 6px; margin-top: 15px; }
+  .demo-selection-bar { gap: 8px; margin-top: 15px; }
+  .demo-choices { gap: 6px; }
   .demo-choices button { font-size: 11px; padding: 5px 8px; }
   .demo-abc { grid-template-columns: 210px 1fr; gap: 25px; margin-inline: -12px; padding-inline: 20px; }
   .abc-introduction h2 { font-size: 27px; }
@@ -106,25 +118,26 @@
   .failure-droid .failure-clip figcaption { margin-top: 0; }
 }
 @media(max-width:650px) {
+  .demo-speed-badge { right: 7px; bottom: 7px; padding: 4px 7px; font-size: 10px; }
   .demo-dataset-title, .abc-pilot-label { font-size: 21px; }
   .demo-dataset-title > span, .abc-pilot-label > span { font-size: 14px; }
   .demo-section-top .text-button { font-size: 11px; }
   .abc-pilot-intro { margin-bottom: 18px; }
   .abc-pilot-heading > p, .abc-pilot-data { font-size: 13px; }
   .failure-observation, .failure-pretraining p { font-size: 13px; }
+  .failure-examples { grid-template-columns: 1fr; gap: 22px; }
   .demo-showcase { margin-top: 27px; }
-  .demo-chapters { gap: 0; justify-content: space-between; }
-  .demo-chapters button { font-size: 12px; padding: 12px 0; }
-  .demo-chapters button > span { display: block; margin: 0 0 3px; text-align: left; font-size: 9px; }
   .demo-stage { grid-template-columns: 1fr .8fr; gap: 23px 15px; padding: 24px 0 0; align-items: end; }
   .demo-story { grid-column: 1 / -1; padding: 0; position: relative; }
   .demo-story-number { position: absolute; right: 0; top: 0; font-size: 36px; color: #d6e0eb; margin: 0; }
   .demo-story h3 { font-size: 29px; max-width: 85%; }
   .demo-story > p { max-width: 94%; font-size: 13px; margin-top: 12px; }
-  .demo-choices { margin-top: 17px; }
+  .demo-selection-bar { margin-top: 17px; }
+  .demo-next-cue { width: 28px; height: 28px; right: 7px; }
   .demo-evaluation-link { margin-top: 13px; }
   .demo-film-secondary { margin-bottom: 10px; }
-  .demo-film figcaption { font-size: 11px; }
+  .demo-film figcaption { min-height: 49.5px; font-size: 11px; }
+  .demo-film-secondary figcaption { grid-template-rows: 49.5px 32px; }
   .demo-abc { grid-template-columns: 1fr; gap: 26px; padding: 25px 18px; margin: 32px -18px 0; }
   .abc-introduction { position: relative; padding-right: 110px; }
   .abc-introduction h2 { font-size: 30px; }

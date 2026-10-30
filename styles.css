@@ -329,3 +329,9 @@ pre { font-size: 14px; }
   .transfer-task-picker { width: 100%; }
   .transfer-definition { font-size: 14px; }
 }
+
+/* Inference figure and its notation. */
+.inference .inference-figure { max-width: 1000px; margin: 18px auto 0; }
+.inference-figure figcaption { max-width: 850px; margin: 16px auto 0; }
+.inference-figure .math-symbol { white-space: nowrap; color: #455269; }
+.inference-figure sub { font-size: .75em; }

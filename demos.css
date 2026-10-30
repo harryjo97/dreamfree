@@ -39,12 +39,10 @@
 .demo-film-secondary { align-self: end; margin-bottom: 12px; }
 .demo-film-frame { position: relative; overflow: hidden; border-radius: 6px; background: #e9e9e7; }
 .demo-film-navigation { position: relative; }
-.demo-film-next { display: block; width: 100%; padding: 0; border: 0; text-align: left; }
-.demo-next-cue { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #ffffff8c; border-radius: 5px; color: #34455d; background: #ffffffe6; pointer-events: none; }
-.demo-film-next:hover .demo-next-cue { color: var(--blue-dark); background: #fff; }
-.demo-prev-cue { left: 10px; right: auto; z-index: 2; padding: 0; pointer-events: auto; }
-.demo-prev-cue:hover { color: var(--blue-dark); background: #fff; }
-.demo-film-next:focus-visible { outline: 3px solid #77a3dc; outline-offset: 5px; }
+.demo-next-cue { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; z-index: 2; padding: 0; border: 1px solid #ffffff8c; border-radius: 5px; color: #34455d; background: #ffffffe6; }
+.demo-next-cue:hover { color: var(--blue-dark); background: #fff; }
+.demo-prev-cue { left: 10px; right: auto; }
+.demo-next-cue:focus-visible { outline: 3px solid #77a3dc; outline-offset: 5px; }
 .demo-next-topic { grid-row: 2; font-size: 11px; line-height: 16px; color: #7b8b9e; }
 .demo-video-frame { position: relative; overflow: hidden; border-radius: 5px; background: #eceeec; }
 .demo-film-frame video, .demo-video-frame video { display: block; }

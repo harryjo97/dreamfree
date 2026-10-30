@@ -9,7 +9,7 @@
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css?v=inference-figure">
   <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
-  <link rel="stylesheet" href="demos.css?v=demo-arrows">
+  <link rel="stylesheet" href="demos.css?v=arrow-only-navigation">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
@@ -63,7 +63,10 @@
             <figcaption><span id="demo-primary-caption">Stand the bottle upright</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
           <figure class="demo-film demo-film-secondary">
-            <button id="demo-next-clip" class="demo-film-frame demo-film-next" type="button" aria-label="Show next demo: Pour the contents of the cup into the pan."><video id="demo-secondary" muted loop playsinline preload="metadata" src="assets/demos/droid-pour.mp4" poster="assets/demos/droid-pour.jpg" aria-label="Pour the contents of the cup into the pan."></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span><span class="demo-next-cue" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></span></button>
+            <div class="demo-film-navigation">
+              <div class="demo-film-frame"><video id="demo-secondary" muted loop playsinline preload="metadata" src="assets/demos/droid-pour.mp4" poster="assets/demos/droid-pour.jpg" aria-label="Pour the contents of the cup into the pan."></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
+              <button id="demo-next-clip" class="demo-next-cue" type="button" aria-label="Show next demo: Pour the contents of the cup into the pan."><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
+            </div>
             <figcaption><span id="demo-secondary-caption">Pour the contents of the cup into the pan.</span><span id="demo-next-topic" class="demo-next-topic" hidden></span><span id="demo-secondary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
         </div>

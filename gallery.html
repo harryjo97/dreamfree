@@ -8,11 +8,11 @@
   <title>Gallery — DreamFree</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css?v=titillium-web">
-  <link rel="stylesheet" href="gallery.css?v=observation-timing">
+  <link rel="stylesheet" href="gallery.css?v=remove-pilot-label">
   <script src="gallery-data.js" defer></script>
   <script src="gallery-yam-data.js?v=rack-plates-11" defer></script>
   <script src="video-playback.js" defer></script>
-  <script src="gallery.js?v=gallery-description" defer></script>
+  <script src="gallery.js?v=remove-task-range" defer></script>
 </head>
 <body class="droid-gallery">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -26,7 +26,6 @@
     <section class="droid-heading" aria-labelledby="gallery-title">
       <p class="eyebrow">REAL-WORLD EVALUATION</p>
       <h1 id="gallery-title">Gallery</h1>
-      <p>Real-world rollouts across robots and tasks.</p>
       <div class="gallery-dataset-tabs" role="tablist" aria-label="Robot and training dataset">
         <button id="gallery-dataset-droid" type="button" role="tab" aria-selected="true" aria-controls="gallery-collection" data-dataset="droid">DROID <span>(Franka Panda)</span></button>
         <button id="gallery-dataset-yam" type="button" role="tab" aria-selected="false" aria-controls="gallery-collection" data-dataset="yam" tabindex="-1">ABC-130k <span>(YAM)</span></button>
@@ -47,7 +46,7 @@
       </details>
       <div class="droid-layout">
         <aside class="droid-sidebar" aria-label="Choose an evaluation task">
-          <h2>Tasks <span id="gallery-task-count">01–10</span></h2>
+          <h2>Tasks</h2>
           <nav id="droid-task-nav" aria-label="Evaluation tasks"></nav>
           <label class="droid-mobile-picker">Task<select id="droid-task-select"></select></label>
         </aside>
@@ -63,7 +62,6 @@
             <button id="droid-model-dreamzero" type="button" role="tab" aria-selected="false" aria-controls="droid-trials" data-model="dreamzero" tabindex="-1">DreamZero</button>
             <button id="droid-model-pi" type="button" role="tab" aria-selected="false" aria-controls="droid-trials" data-model="pi" tabindex="-1">π₀.₅</button>
           </div>
-          <p id="gallery-pilot-label" class="gallery-pilot-label" hidden><span class="method-name">DreamFree</span> · Pilot rollouts</p>
           <div class="droid-video-toolbar">
             <p class="gallery-timing-note"><strong>Not real-time playback.</strong> Videos omit inference pauses, so playback does not reflect actual elapsed time.</p>
             <button id="droid-playback" class="text-button" type="button">Pause videos</button>

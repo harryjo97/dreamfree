@@ -12,8 +12,6 @@
 .gallery-dataset-tabs button:focus-visible { outline: 3px solid #77a3dc; outline-offset: 4px; }
 .gallery-collection-intro { padding-top: 21px; font-size: 15px; color: #596677; line-height: 1.65; }
 .gallery-training { margin-top: 5px; font-size: 12px; color: var(--muted); }
-.gallery-pilot-label { margin-top: 20px; color: var(--muted); font-size: 13px; }
-.gallery-pilot-label .method-name { color: var(--blue-dark); }
 .droid-summary { margin-top: 18px; font-size: 13px; }
 .droid-summary summary { width: fit-content; color: var(--blue); cursor: pointer; }
 .droid-summary summary > span { color: var(--muted); margin-left: 12px; font-size: 12px; }

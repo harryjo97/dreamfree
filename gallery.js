@@ -70,9 +70,7 @@
     document.querySelector('#gallery-summary').hidden = isYam;
     document.querySelector('#droid-task-metrics').hidden = isYam;
     document.querySelector('.droid-model-tabs').hidden = isYam;
-    document.querySelector('#gallery-pilot-label').hidden = !isYam;
     document.querySelector('.gallery-timing-note').hidden = isYam;
-    document.querySelector('#gallery-task-count').textContent = `01–${String(dataset.tasks.length).padStart(2, '0')}`;
     datasetTabs.forEach(tab => {
       const active = tab.dataset.dataset === key;
       tab.setAttribute('aria-selected', String(active));

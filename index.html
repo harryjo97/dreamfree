@@ -7,14 +7,14 @@
   <meta name="theme-color" content="#ffffff">
   <title>DreamFree: Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=title-color">
-  <link rel="stylesheet" href="demos-compact.css?v=pour-pairs">
-  <link rel="stylesheet" href="demos.css?v=arrow-only-navigation">
+  <link rel="stylesheet" href="styles.css?v=comparison-black-heading">
+  <link rel="stylesheet" href="demos-compact.css?v=titillium-web">
+  <link rel="stylesheet" href="demos.css?v=yam-controls">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js" defer></script>
-  <script src="demos.js?v=chapter-headings" defer></script>
-  <script src="transfer.js" defer></script>
+  <script src="demos.js?v=yam-controls" defer></script>
+  <script src="transfer.js?v=atomic-scope-note" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -35,12 +35,20 @@
       <div class="affiliation"><a href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img class="kaist-logo" src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></div>
       <p class="author-note"><sup>*</sup> Equal contribution <span>·</span> <sup>†</sup> Equal advising</p>
       <div class="resource-links">
-        <button class="resource unavailable" data-resource="paper" disabled title="arXiv preprint coming soon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 3 10 18M17 3 7 21M4 7l5 5-5 5m16-10-5 5 5 5"/></svg>arXiv <small>soon</small></button>
+        <a class="resource" data-resource="paper" href="https://drive.google.com/file/d/1WyfPt1ogHSlV1oDhNVypDbmIk93R-OLc/view?usp=drive_link" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>Paper</a>
         <a class="resource" data-resource="code" data-coming-soon="true" href="https://github.com/harryjo97/dreamfree" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></a>
         <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>Gallery</a>
         <a class="resource primary" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
-      <p class="deployment-summary"><strong>14B video backbone <span class="backbone-context">(Wan 2.2 A14B I2V)</span> · Single GPU <span class="backbone-context">(<  48GB)</span> · 11 Hz real-time control <span class="hardware-context">(single H200)</span></strong></p>
+      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>DreamFree uses a video model’s predictive features to predict actions <em>without generating future videos.</em></p>
+      <div class="deployment-evidence">
+        <div class="deployment-story">
+          <div><h3>A 14B video backbone running at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success.</p></div>
+          <div><h3>Lower memory use at inference.</h3><p>Without future-video generation or classifier-free guidance (CFG) at inference, <strong>DreamFree can fit on a single A6000 with 48 GB of memory.</strong></p></div>
+          <div><h3>Improves with larger backbones and video-only data.</h3><p>Scaling the video backbone from 5B to 14B improves RoboCasa success from 58.5% to 71.7%. Extra videos raise it to 74.4% without additional action labels.</p></div>
+        </div>
+        <figure class="paper-figure speed-overview"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 1 success versus inference latency plot"><img src="assets/figures/droid_success_vs_latency_v3.png" width="2400" height="2181" loading="lazy" alt="Figure 1: DreamFree achieves 64% real-world success with 17.8 times lower inference latency than DreamZero, which achieves 56%; pi 0.5 achieves 16% success with comparable latency to DreamFree."></button><figcaption>Figure 1 · Real-world DROID evaluation on H200 GPUs. Latency is measured per action chunk.</figcaption></figure>
+      </div>
       <section class="demo-showcase" id="demos" aria-labelledby="droid-demo-title">
         <div class="demo-section-top"><h2 class="demo-dataset-title" id="droid-demo-title">DROID <span>(Franka Panda)</span></h2><button id="demo-motion" class="text-button" type="button">Pause videos</button></div>
         <div id="demo-stage" class="demo-stage" role="group" aria-labelledby="demos-title">
@@ -77,11 +85,13 @@
           <header class="abc-pilot-intro">
             <div class="abc-pilot-heading">
               <h2 class="abc-pilot-label" id="abc-demo-title">ABC-130k <span>(YAM)</span></h2>
-              <p>A small-data pilot, exploring manipulation on another robot.</p>
             </div>
-            <p class="abc-pilot-data">Trained on filtered <strong>100-hour subset</strong> of ABC-130k<span>≈1/35 of ABC-130k’s total duration</span></p>
+            <div class="abc-pilot-controls">
+              <button id="yam-motion" class="text-button" type="button" aria-controls="yam-films">Pause videos</button>
+              <p class="abc-pilot-data">Trained on a filtered <strong>100-hour subset</strong> of ABC-130k <span>(≈1/35 of its total duration)</span></p>
+            </div>
           </header>
-          <div class="compact-abc-films">
+          <div class="compact-abc-films" id="yam-films">
             <div class="compact-wide-pair">
             <figure class="compact-film compact-film-wide">
               <div class="demo-video-frame"><video muted loop playsinline preload="none" data-src="assets/demos/abc-dish-success-long.mp4?v=ready" data-playback-rate="1.5" poster="assets/demos/abc-dish-success-long.jpg?v=ready" width="1280" height="720" aria-label="Load plates into tabletop dish rack"></video><span class="demo-speed-badge" aria-label="Playback speed: 1.5×">1.5×</span></div>
@@ -109,52 +119,42 @@
           </div>
           <div class="compact-footnote abc-pilot-note"><p>Trained on <strong>ABC-130k only</strong> · No task-specific adaptation.</p><a href="gallery.html#yam">Explore the YAM rollouts <span aria-hidden="true">↗</span></a></div>
         </section>
-      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>Effectively leveraging video priors, <em>even without generating future videos.</em></p>
+      <hr class="demo-section-divider">
     </section>
 
     <section class="section container" id="overview" aria-labelledby="overview-title">
-      <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2><p>Skipping video generation enables fast inference. It also avoids reliance on potentially inaccurate video predictions.<br>Making stronger video priors useful for control is the next challenge.</p></div>
+      <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2></div>
       <figure class="paper-figure concept-comparison">
-        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future videos; Fast-WAM co-trains video denoising and action prediction but omits video generation at inference; DreamFree explicitly guides the shared features used for action prediction to capture future information."></button>
+        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future videos; Fast-WAM co-trains video denoising and action prediction but omits video generation at inference; DreamFree distills predictive knowledge from a frozen video diffusion model into a predictive visual encoder."></button>
         <figcaption class="concept-caption">
-          <div><h3>Joint WAMs</h3><p>Use video generative priors directly through <strong>future-video generation</strong>. Iterative denoising is costly, and errors in predicted futures can lead to inaccurate actions.</p></div>
-          <div><h3>Fast-WAM</h3><p>Co-trains video denoising and action prediction, then predicts actions without generating future videos. Yet <strong>denoising videos well does not guarantee that the shared features used for action prediction capture future information.</strong></p></div>
-          <div><h3><span class="method-name">DreamFree</span></h3><p><strong>Explicitly guides the shared features used for action prediction to capture the video diffusion model’s predictive priors.</strong> Future representation distillation aligns these features with a frozen teacher that observes the future.</p></div>
+          <div><h3>Joint WAMs <small>(e.g., DreamZero)</small></h3><p>Generate <strong>future videos to guide actions</strong>. Iterative denoising is slow, and video prediction errors can affect actions.</p></div>
+          <div><h3>Fast-WAM</h3><p>Trains video denoising and action prediction together, but <strong>skips video generation at inference</strong>. Denoising alone does not ensure the shared features capture future information.</p></div>
+          <div><h3><span class="method-name">DreamFree</span></h3><p><strong>Distills a frozen video diffusion model’s predictive knowledge into a visual encoder.</strong> Predicts actions from the current observation without generating future videos.</p></div>
         </figcaption>
       </figure>
       <div class="alignment-insight">
-        <h3>Making video priors useful without generating future videos.</h3>
-        <p>In imagination-free WAMs, actions are predicted without generating future videos. Denoising videos well during co-training does not guarantee that <strong>the shared features used for action prediction capture future information.</strong></p>
-        <p><span class="method-name">DreamFree</span> uses <strong>future representation distillation</strong> to explicitly guide these features to capture the video diffusion model’s predictive priors. In our RoboCasa evaluation, scaling the backbone from 5B to 14B raises DreamFree’s success from <strong>58.5% to 71.7%</strong>, while Fast-WAM changes only from <strong>44.4% to 44.7%</strong>.</p>
-        <p class="pretraining-note"><span class="method-name">DreamFree</span> achieves these gains <strong>without embodied pre-training.</strong></p>
+        <p>DreamFree adds <strong>future representation distillation</strong> to video generative training, making the video model’s predictive knowledge available in the features used for action prediction. This helps translate larger video backbones into better control; generative training alone shows little benefit from scaling.</p>
       </div>
-      <div class="deployment-evidence">
-        <div class="deployment-story">
-          <div><h3>14B video priors at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success. Imagination-free inference enables nearly continuous control without video step distillation or asynchronous execution.</p></div>
-          <div><h3>A 14B backbone on 48 GB.</h3><p>Omitting future-video generation and classifier-free guidance (CFG) reduces the inference memory footprint. The policy can fit on a single A6000 with 48 GB of memory; <strong>all reported experiments use H200 GPUs.</strong></p></div>
-        </div>
-        <figure class="paper-figure speed-overview"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 1 success versus inference latency plot"><img src="assets/figures/droid_success_vs_latency_v3.png" width="2400" height="2181" loading="lazy" alt="Figure 1: DreamFree achieves 64% real-world success with 17.8 times lower inference latency than DreamZero, which achieves 56%; pi 0.5 achieves 16% success with comparable latency to DreamFree."></button><figcaption><strong>Higher success, lower latency.</strong> Figure 1 · Real-world DROID evaluation on H200 GPUs. Latency is measured per action chunk.</figcaption></figure>
-      </div>
-      <details class="abstract"><summary>Read the full abstract <span aria-hidden="true">+</span></summary><div><p>World Action Models (WAM) use the predictive knowledge of pretrained video diffusion models for robot control through future video prediction. However, iterative video denoising is costly, and inaccurate visual predictions can compromise action prediction. Our key idea is to make this predictive knowledge available through visual representations computed from the current observation, enabling action prediction without generating future videos.</p><p>We introduce <span class="method-name">DreamFree</span>, a WAM that repurposes a pretrained video diffusion model as a predictive visual encoder through representation distillation. The visual encoder learns to predict a frozen video diffusion model’s representation using only the current observation. An action module is then trained to predict actions by extracting action-relevant information from the visual encoder. Across real-world and simulated tasks, <span class="method-name">DreamFree</span> achieves higher success rates than state-of-the-art VLAs and WAMs, while performing real-time closed-loop control at 11Hz with a 14B video diffusion backbone. Experiments show that <span class="method-name">DreamFree</span> can translate stronger video priors and additional video data into better robot control and enable learning new robot tasks from video demonstrations, including videos from a different embodiment, without action annotation for the new tasks.</p></div></details>
     </section>
 
     <section class="section section-tint" id="method" aria-labelledby="method-title"><div class="container">
-      <div class="section-heading"><h2 id="method-title">Make video priors useful<br>without imagining videos.</h2><p>An explicit alignment loss makes current-frame features predictive of the future.</p></div>
-      <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge DreamFree method diagram"><img src="assets/figures/method_v2.png" width="2400" height="615" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption><strong><span class="method-name">DreamFree</span> architecture.</strong> Future frames supervise representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
+      <div class="section-heading"><h2 id="method-title">Make video priors useful without imagining videos.</h2><p>An explicit alignment loss makes current-frame features predictive of the future.</p></div>
+      <p class="method-phase-label">AT TRAINING</p>
+      <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 2 method diagram"><img src="assets/figures/method_v2.png" width="2400" height="615" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption>Figure 2 · Future frames supervise predictive representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
       
       <div class="method-steps"><article><span class="step-label">STAGE 1</span><h3>Distill predictive representations</h3><p>A frozen video diffusion teacher observes current and future frames. An alignment loss trains the current-frame features to predict the teacher’s future-aware representations, alongside the original video generative objective. This directly supervises the features used for control and needs no action labels.</p></article><article><span class="step-label">STAGE 2</span><h3>Learn to read out actions</h3><p>Using action-labeled robot demonstrations, a readout module extracts action-relevant features from the visual encoder. An action decoder maps these features to executable action chunks.</p></article></div>
       <div class="inference" id="inference"><span>AT INFERENCE</span>
         <figure class="paper-figure inference-figure">
-          <button class="figure-zoom" type="button" aria-label="Enlarge DreamFree inference diagram"><img src="assets/figures/inference.png" width="2400" height="307" loading="lazy" alt="Current frame f zero and language instruction ell enter a 5B or 14B Visual Encoder in one forward pass. Readout feeds a 1B Action DiT, which denoises an action chunk a one through a h."></button>
-          <figcaption>The <strong>Visual Encoder</strong> processes the current frame <span class="math-symbol"><i>f</i><sub>0</sub></span> and instruction <span class="math-symbol">ℓ</span> in one forward pass. <strong>Readout</strong> extracts action-relevant features, and the 1B <strong>Action DiT</strong> denoises the action chunk <span class="math-symbol"><i>a</i><sub>1</sub>, …, <i>a</i><sub>h</sub></span>.<br>No future-video generation is needed.</figcaption>
+          <button class="figure-zoom" type="button" aria-label="Enlarge Figure 3 inference diagram"><img src="assets/figures/inference.png" width="2400" height="307" loading="lazy" alt="Current frame f zero and language instruction ell enter a 5B or 14B Visual Encoder in one forward pass. Readout feeds a 1B Action DiT, which denoises an action chunk a one through a h."></button>
+          <figcaption>Figure 3 · The <strong>Visual Encoder</strong> processes the current frame <span class="math-symbol"><i>f</i><sub>0</sub></span> and instruction <span class="math-symbol">ℓ</span> in one forward pass. <strong>Readout</strong> extracts action-relevant features, and the 1B <strong>Action DiT</strong> denoises the action chunk <span class="math-symbol"><i>a</i><sub>1</sub>, …, <i>a</i><sub>h</sub></span>. No future-video generation is needed.</figcaption>
         </figure>
       </div>
     </div></section>
 
     <section class="section container" id="results" aria-labelledby="results-title">
-      <div class="section-heading"><h2 id="results-title">Results</h2><p>Stronger video priors translate into better robot control.</p></div>
-      <article class="scaling-finding">
-        <div class="finding-copy"><h3>RoboCasa-Kitchen</h3><p>Across 24 kitchen tasks, <span class="method-name">DreamFree</span> reaches <strong>71.7% success</strong>, rising to <strong>74.4%</strong> with extra video data. Scaling the backbone from 5B to 14B adds <strong>13.2 percentage points</strong>, compared with 0.3 for Fast-WAM.</p></div>
+      <div class="section-heading results-heading"><h2 id="results-title">Evaluation results</h2></div>
+      <article class="scaling-finding" aria-labelledby="robocasa-title">
+        <div class="finding-copy"><h3 id="robocasa-title">RoboCasa-Kitchen simulation</h3><p>Across 24 kitchen tasks, <span class="method-name">DreamFree</span> reaches 71.7% success, rising to 74.4% with extra video data. Scaling the backbone from 5B to 14B adds 13.2 percentage points, compared with 0.3 for Fast-WAM.</p></div>
         <div class="result-tables">
           <div class="scaling-evidence"><table class="scaling-table"><caption>Comparison with VLA and WAM baselines</caption><thead><tr><th scope="col">Method</th><th scope="col">Family</th><th scope="col">Success (%)</th></tr></thead><tbody>
             <tr><th scope="row">π₀</th><td>VLA</td><td>62.5</td></tr>
@@ -163,13 +163,13 @@
             <tr><th scope="row">Cosmos Policy</th><td>WAM</td><td>67.1</td></tr>
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span> (14B)</th><td>WAM</td><td>71.7</td></tr>
             <tr class="ours extra-video"><th scope="row" aria-label="DreamFree 14B + extra video">+ extra video</th><td>WAM</td><td><strong>74.4</strong></td></tr>
-          </tbody></table><p class="scaling-note">Limited-data setting: like Cosmos Policy, our base model uses only <strong>50 demonstrations per task</strong> for video and action training. “+ extra video” adds video-only data with the same action supervision.</p></div>
+          </tbody></table><p class="scaling-note">The base model uses <strong>50 demonstrations per task</strong>, as in Cosmos Policy. “+ extra video” adds videos without extra action labels.</p></div>
           <div class="scaling-evidence"><table class="scaling-table"><caption>Scaling imagination-free WAMs · Success (%)</caption><thead><tr><th scope="col">Method</th><th scope="col">5B</th><th scope="col">14B</th><th scope="col">Gain</th></tr></thead><tbody>
             <tr><th scope="row">Fast-WAM</th><td>44.4</td><td>44.7</td><td>+0.3 pp</td></tr>
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td>58.5</td><td>71.7</td><td>+13.2 pp</td></tr>
             <tr class="ours extra-video"><th scope="row" aria-label="DreamFree + extra video">+ extra video</th><td>68.8</td><td>74.4</td><td>+5.6 pp</td></tr>
           </tbody></table><p class="scaling-note">Gain: 5B → 14B within each row.</p>
-            <div class="scaling-takeaway"><p>DreamFree effectively leverages <strong>video priors without imagination</strong> and benefits from <strong>additional video-only data</strong>.</p><p class="takeaway-detail">Without additional action annotations.</p></div>
+            <div class="scaling-takeaway"><p>DreamFree effectively leverages <strong>video priors without imagination</strong> and benefits from <strong>additional video-only data</strong>.</p></div>
           </div>
         </div>
       </article>
@@ -180,22 +180,22 @@
             <tr><th scope="row">π₀.₅</th><td>16.0</td><td>33.5</td><td>81</td></tr>
             <tr><th scope="row">DreamZero</th><td>56.0</td><td>71.8</td><td>1,632</td></tr>
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td><strong>64.0</strong></td><td><strong>83.0</strong></td><td>91</td></tr>
-          </tbody></table><p class="scaling-note">Mean inference latency per action chunk on H200 GPUs, using each policy’s deployed configuration.</p></div>
+          </tbody></table><p class="scaling-note">Average time to predict an action chunk on H200 GPUs, using each policy’s own settings.</p></div>
         </div>
-        <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
+        <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 4 real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 4 · Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
       </article>
-      <article class="finding"><div class="finding-copy"><h3>11 Hz real-time control.<br>One GPU.</h3><p>A 14B video backbone reaches <strong>11 Hz on a single H200</strong>, a <strong>17.8× inference speedup</strong> over DreamZero. Robot actions remain nearly continuous without relying on video step distillation or asynchronous execution to mask inference delays.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
+      <article class="finding"><div class="finding-copy"><h3>Real-time control at 11 Hz</h3><p>With its 14B video backbone, DreamFree averages <strong>91 ms per action chunk on a single H200</strong>. Inference is <strong>17.8× faster than DreamZero</strong>, without video step distillation or asynchronous execution.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 5 latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 5 · Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
     </section>
 
     <section class="section section-tint evaluation-entry" id="examples" aria-labelledby="examples-title"><div class="container">
-      <div><span class="demo-overline">REAL-WORLD GALLERY</span><h2 id="examples-title">More tasks. More rollouts.</h2><p>Full DROID evaluations and a small-data pilot on YAM.</p></div>
+      <div><span class="demo-overline">REAL-WORLD GALLERY</span><h2 id="examples-title">DROID and YAM rollouts</h2><p>Full DROID evaluations and a small-data pilot on YAM.</p></div>
       <a class="resource" href="gallery.html">Open Gallery <span aria-hidden="true">↗</span></a>
     </div></section>
 
     <section class="section container transfer transfer-study" id="video-transfer" aria-labelledby="transfer-title">
-      <h2 id="transfer-title">Can DreamFree also benefit from video-only data?</h2>
-      <p class="reading-width transfer-intro">Like other WAMs, DreamFree can benefit from video-only demonstrations through its predictive encoder.<br class="transfer-intro-break"> These results suggest that learning demonstrated task plans may help compose familiar skills into new tasks without additional action labels.</p>
-      <p class="transfer-definition"><strong>Atomic tasks</strong> teach individual skills. <strong>Composite tasks</strong> combine them in a sequence.</p>
+      <h2 id="transfer-title">Task transfer from video demonstrations</h2>
+      <p class="reading-width transfer-intro">DreamFree learns from video-only demonstrations through its predictive encoder.</p>
+      <p id="transfer-definition" class="transfer-definition"><strong>Atomic tasks</strong> use one skill; <strong>composite tasks</strong> combine several skills in sequence.</p>
       <div class="transfer-tabs" role="tablist" aria-label="Video transfer setting" hidden>
         <button id="transfer-tab-same" role="tab" aria-selected="true" aria-controls="transfer-panel" data-transfer-group="same">Atomic → Composite</button>
         <button id="transfer-tab-cross" role="tab" aria-selected="false" aria-controls="transfer-panel" data-transfer-group="cross" tabindex="-1">Cross-embodiment</button>
@@ -207,14 +207,13 @@
           <p id="transfer-description">We add composite-task demonstrations to visual encoder pre-training, alongside atomic-task videos. Both models use the same atomic-task action labels to train the action module; no composite-task action labels are used.</p>
         </div>
         <div class="transfer-toolbar" hidden>
-          <label class="transfer-task-picker" for="transfer-task">Composite task<select id="transfer-task"><option value="microwave">Microwave thawing</option></select></label>
+          <label class="transfer-task-picker" for="transfer-task">Target task<select id="transfer-task"><option value="microwave">Microwave thawing</option></select></label>
           <div class="transfer-playback">
             <span id="transfer-speed" class="transfer-speed">2× playback</span>
             <button id="transfer-motion" class="media-toggle" type="button">Pause videos</button>
           </div>
         </div>
         <p id="transfer-goal" class="transfer-goal">Open the microwave → put food inside → close the door → turn it on.</p>
-        <p id="transfer-evaluation-note" class="transfer-evaluation-note">Paper evaluation: 20 trials per task. Progress measures average subgoal completion; videos are selected examples.</p>
         <div class="transfer-videos">
           <figure class="transfer-video-card" data-embodiment="same">
             <figcaption><span class="transfer-step">01 · Added data</span><h4 id="transfer-training-title">Composite-task videos</h4><p id="transfer-training-stage" class="transfer-card-detail">For encoder pre-training</p><div class="transfer-card-meta"><span class="transfer-label">No action labels</span><span id="transfer-training-robot" class="transfer-robot" hidden></span></div></figcaption>
@@ -241,10 +240,12 @@
             <p class="transfer-instruction"><span>Inference instruction</span><q id="transfer-after-instruction">Pick the cheese from the counter and place it in the microwave. Then turn on the microwave.</q></p>
           </figure>
         </div>
+        <p id="transfer-scope" class="transfer-scope"><strong>Note:</strong> The atomic training data typically includes the individual skills used in composite tasks, e.g., “Open the microwave” and “Close the door.”</p>
         <p id="transfer-view-note" class="transfer-view-note" hidden></p>
         <p id="transfer-status" class="sr-only" aria-live="polite"></p>
       </div>
-      <p class="transfer-scope"><strong>Note:</strong> The atomic training data typically includes the individual skills used in composite tasks, e.g., “Open the microwave” and “Close the door.”</p>
+      <p class="reading-width transfer-takeaway">Our results suggest that these demonstrations help it combine familiar skills into new task sequences, without additional action labels.</p>
+      <hr class="transfer-divider">
     </section>
 
     <section class="section container" id="failure-cases" aria-labelledby="failure-cases-title">
@@ -274,13 +275,9 @@
                 <figcaption><p class="failure-instruction">Erase the whiteboard</p><a class="failure-rollout" href="gallery.html#yam-erase-whiteboard">Rollout 01 <span aria-hidden="true">↗</span></a></figcaption>
               </figure>
             </div>
-            <p class="failure-observation">This brief pilot shows promise with limited training, but folding and erasing remain unreliable. The t-shirt folding failure may reflect difficulty understanding the cloth’s state.</p>
+            <p class="failure-observation">The policy completes some tasks with limited training data, but folding clothes and erasing the whiteboard are still unreliable. The t-shirt folding failure may reflect difficulty understanding the cloth’s state.</p>
             <p class="failure-open-question">We have not yet investigated whether longer training would resolve these limitations.</p>
           </article>
-        </div>
-        <div class="failure-pretraining">
-          <h3>Embodied pre-training remains untested.</h3>
-          <p>Computational constraints have so far prevented embodied pre-training, so we have not directly measured its benefits. The gains from video-only training suggest that embodied pre-training could also help, but this remains to be tested.</p>
         </div>
       </div>
     </section>

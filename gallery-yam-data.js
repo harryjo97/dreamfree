@@ -1,4 +1,5 @@
 // YAM pilot recordings and source annotations from dreamfree-yam/gallery.html.
+// Rack Plates annotations: awam/eval_results/yam_real/2026_1029/gallery.html.
 // Missing outcome annotations are kept as null.
 window.YAM_GALLERY = [
   {
@@ -353,60 +354,15 @@ window.YAM_GALLERY = [
     ]
   },
   {
-    "id": "yam-fold-towels",
-    "number": "05",
-    "category": "Fold Towels",
-    "title": "Fold and stack the towels",
-    "instruction": "fold and stack the towels",
-    "runs": [
-      {
-        "src": "assets/gallery/yam/05_fold-towels/20261029_170358.mp4",
-        "status": null,
-        "recordedAt": "2026-10-29T17:03:58",
-        "replan": 16,
-        "inference": 32,
-        "checkpoint": 40000,
-        "source": "videos/standard_replan16_inference32/fold_and_stack_the_towels_20261029_170358/episode_000_top.mp4"
-      },
-      {
-        "src": "assets/gallery/yam/05_fold-towels/20261029_170533.mp4",
-        "status": null,
-        "recordedAt": "2026-10-29T17:05:33",
-        "replan": 16,
-        "inference": 32,
-        "checkpoint": 40000,
-        "source": "videos/standard_replan16_inference32/fold_and_stack_the_towels_20261029_170533/episode_000_top.mp4"
-      },
-      {
-        "src": "assets/gallery/yam/05_fold-towels/20261029_170754.mp4",
-        "status": null,
-        "recordedAt": "2026-10-29T17:07:54",
-        "replan": 16,
-        "inference": 32,
-        "checkpoint": 40000,
-        "source": "videos/standard_replan16_inference32/fold_and_stack_the_towels_20261029_170754/episode_000_top.mp4"
-      },
-      {
-        "src": "assets/gallery/yam/05_fold-towels/20261029_170927.mp4",
-        "status": null,
-        "recordedAt": "2026-10-29T17:09:27",
-        "replan": 16,
-        "inference": 32,
-        "checkpoint": 40000,
-        "source": "videos/standard_replan16_inference32/fold_and_stack_the_towels_20261029_170927/episode_000_top.mp4"
-      }
-    ]
-  },
-  {
     "id": "yam-rack-plates",
-    "number": "06",
+    "number": "05",
     "category": "Rack Plates",
     "title": "Load plates into tabletop dish rack",
     "instruction": "load plates into tabletop dish rack",
     "runs": [
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_173448.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T17:34:48",
         "replan": 16,
         "inference": 32,
@@ -414,17 +370,8 @@ window.YAM_GALLERY = [
         "source": "videos/standard_replan16_inference32/load_plates_into_tabletop_dish_rack_20261029_173448/episode_000_top.mp4"
       },
       {
-        "src": "assets/gallery/yam/06_rack-plates/20261029_173930.mp4",
-        "status": null,
-        "recordedAt": "2026-10-29T17:39:30",
-        "replan": 16,
-        "inference": 32,
-        "checkpoint": 40000,
-        "source": "videos/standard_replan16_inference32/load_plates_into_tabletop_dish_rack_20261029_173930/episode_000_top.mp4"
-      },
-      {
         "src": "assets/gallery/yam/06_rack-plates/20261029_174519.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T17:45:19",
         "replan": 16,
         "inference": 32,
@@ -433,7 +380,7 @@ window.YAM_GALLERY = [
       },
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_175029.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T17:50:29",
         "replan": 16,
         "inference": 32,
@@ -469,7 +416,7 @@ window.YAM_GALLERY = [
       },
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_175916.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T17:59:16",
         "replan": 16,
         "inference": 32,
@@ -478,7 +425,7 @@ window.YAM_GALLERY = [
       },
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_180754.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T18:07:54",
         "replan": 16,
         "inference": 32,
@@ -496,7 +443,7 @@ window.YAM_GALLERY = [
       },
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_181550.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T18:15:50",
         "replan": 16,
         "inference": 32,
@@ -505,7 +452,7 @@ window.YAM_GALLERY = [
       },
       {
         "src": "assets/gallery/yam/06_rack-plates/20261029_181801.mp4",
-        "status": null,
+        "status": "success",
         "recordedAt": "2026-10-29T18:18:01",
         "replan": 16,
         "inference": 32,

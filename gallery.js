@@ -4,12 +4,12 @@
   const datasets = {
     droid: {
       label: 'DROID', tasks: window.DROID_GALLERY,
-      description: 'Ten tasks. Five trials per policy. Explore every rollout.',
-      training: 'DreamFree: trained on DROID only · No task-specific adaptation.'
+      description: '',
+      training: ''
     },
     yam: {
       label: 'ABC-130k (YAM)', tasks: window.YAM_GALLERY,
-      description: 'A small-data pilot on YAM. Six tasks, 51 rollouts, filmed from the top view.',
+      description: '',
       training: 'Trained only on 100 hours of ABC-130k video (≈1/35 of its total duration) · No task-specific adaptation.'
     }
   };
@@ -64,7 +64,9 @@
     document.body.dataset.gallery = key;
     document.querySelector('#gallery-collection').setAttribute('aria-labelledby', `gallery-dataset-${key}`);
     document.querySelector('#gallery-description').textContent = dataset.description;
+    document.querySelector('#gallery-description').hidden = !dataset.description;
     document.querySelector('#gallery-training').textContent = dataset.training;
+    document.querySelector('.gallery-collection-intro').hidden = !dataset.description && !dataset.training;
     document.querySelector('#gallery-summary').hidden = isYam;
     document.querySelector('#droid-task-metrics').hidden = isYam;
     document.querySelector('.droid-model-tabs').hidden = isYam;

@@ -65,7 +65,9 @@
       if (!entry.isIntersecting) return;
       const video = entry.target;
       if (video.dataset.src) { video.src = video.dataset.src; delete video.dataset.src; video.load(); }
-      media.register(video, video.closest('#failure-cases') ? 'demo-failures' : 'demos');
+      const scope = video.closest('#yam-pilot') ? 'yam-demos'
+        : video.closest('#failure-cases') ? 'demo-failures' : 'demos';
+      media.register(video, scope);
       lazyMedia.unobserve(video);
     });
   }, { rootMargin: '300px' });
@@ -165,6 +167,7 @@
     });
   });
   media.bindToggle(find('demo-motion'), 'demos');
+  media.bindToggle(find('yam-motion'), 'yam-demos');
   chooseChapter('precision');
   document.querySelectorAll('.compact-abc video[data-src], #failure-cases video[data-src]').forEach(video => lazyMedia.observe(video));
   media.bindToggle(find('failure-motion'), 'demo-failures');

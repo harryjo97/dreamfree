@@ -87,9 +87,6 @@
       renderMetric(role, 'rate', 'Success', rates);
       renderMetric(role, 'progress', 'Progress', currentTask.progress);
     });
-    find('evaluation-note').textContent = currentTask.evaluationNote || (rates
-      ? `Paper evaluation: ${data.evaluationTrials} trials per task. Progress measures average subgoal completion; videos are selected examples.`
-      : 'Qualitative example only. Success and progress are not reported for this task in the paper’s transfer figure.');
     sampleButtons.replaceChildren();
     currentTask.training.forEach((media, index) => {
       const button = document.createElement('button');
@@ -119,6 +116,7 @@
     find('setting-title-text').hidden = Boolean(group.variants);
     find('view-heading').hidden = !group.variants;
     find('description').textContent = currentGroup.description;
+    find('scope').hidden = id !== 'same';
     find('speed').textContent = `${currentGroup.speed}× playback`;
     find('view-note').textContent = currentGroup.viewNote;
     find('view-note').hidden = !currentGroup.viewNote;

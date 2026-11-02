@@ -13,7 +13,7 @@
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
   <script src="script.js?v=concept-sequence" defer></script>
-  <script src="demos.js?v=category-previews" defer></script>
+  <script src="demos.js?v=droid-instructions" defer></script>
   <script src="transfer.js?v=atomic-scope-note" defer></script>
 </head>
 <body>
@@ -80,10 +80,10 @@
           </div>
           <figure class="demo-film demo-film-main">
             <div class="demo-film-navigation">
-              <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright"></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
+              <div class="demo-film-frame"><video id="demo-primary" muted loop playsinline preload="metadata" src="assets/demos/droid_bottle.mp4" poster="assets/demos/droid_bottle.jpg" aria-label="Stand the bottle upright."></video><span class="demo-film-progress" aria-hidden="true"></span><span class="demo-speed-badge" aria-label="Playback speed: 1×">1×</span></div>
               <button id="demo-prev-clip" class="demo-next-cue demo-prev-cue" type="button" aria-label="Show previous demo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5"/></svg></button>
             </div>
-            <figcaption><span id="demo-primary-caption">Stand the bottle upright</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
+            <figcaption><span id="demo-primary-caption">Stand the bottle upright.</span><span id="demo-primary-outcome" class="demo-outcome" hidden></span></figcaption>
           </figure>
           <figure class="demo-film demo-film-secondary">
             <div class="demo-film-navigation">
@@ -277,9 +277,9 @@
           <article class="failure-group failure-droid" aria-labelledby="failure-droid-title">
             <h3 id="failure-droid-title">DROID <span>(Franka Panda)</span></h3>
             <figure class="failure-clip failure-portrait">
-              <video muted loop playsinline preload="none" data-src="assets/demos/droid-block-orange-fail.mp4" poster="assets/demos/droid-block-orange-fail.jpg" width="720" height="1280" aria-label="put the orange block in the bowl — picks the red block instead"></video>
+              <video muted loop playsinline preload="none" data-src="assets/demos/droid-block-orange-fail.mp4" poster="assets/demos/droid-block-orange-fail.jpg" width="720" height="1280" aria-label="Put the orange block in the bowl. The robot picks the red block instead."></video>
               <figcaption>
-                <p class="failure-instruction">“put the <span class="demo-instruction-color" style="--instruction-color:#b36124">orange</span> block in the bowl”</p>
+                <p class="failure-instruction">“Put the <span class="demo-instruction-color" style="--instruction-color:#b36124">orange</span> block in the bowl.”</p>
                 <p class="failure-description">The robot picks the red block instead of the requested orange one. Similar colors can still be confused.</p>
               </figcaption>
             </figure>

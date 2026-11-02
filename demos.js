@@ -3,20 +3,20 @@
 
   const media = window.DreamFreeMedia;
   const clips = {
-    bottle: { file: 'droid_bottle', title: 'Stand the bottle upright', label: 'Bottle' },
+    bottle: { file: 'droid_bottle', title: 'Stand the bottle upright.', label: 'Bottle' },
     pour: { file: 'droid-pour', title: 'Pour the contents of the cup into the pan.', label: 'Pour' },
-    bolts: { file: 'droid-bolts', title: 'Put the bolts in the bowl', label: 'Bolts' },
-    ring: { file: 'droid-hole', title: 'Put ring around pole', label: 'Ring' },
-    hat: { file: 'droid-hat', title: 'Hang the hat on the tripod', label: 'Hat' },
-    towel: { file: 'droid-fold-towel', title: 'Fold the towel', label: 'Towel' }
+    bolts: { file: 'droid-bolts', title: 'Put the bolts in the bowl.', label: 'Bolts' },
+    ring: { file: 'droid-hole', title: 'Put the ring around the pole.', label: 'Ring' },
+    hat: { file: 'droid-hat', title: 'Hang the hat on the tripod.', label: 'Hat' },
+    towel: { file: 'droid-fold-towel', title: 'Fold the towel.', label: 'Towel' }
   };
   Object.entries({ red: '#b54235', blue: '#35699a', green: '#48734a', yellow: '#d4a900' }).forEach(([color, hex]) => {
-    clips[color] = { file: `droid-block-${color}`, label: color[0].toUpperCase() + color.slice(1), title: `“put the ${color} block in the bowl”`, color: hex, colorName: color };
+    clips[color] = { file: `droid-block-${color}`, label: color[0].toUpperCase() + color.slice(1), title: `“Put the ${color} block in the bowl.”`, color: hex, colorName: color };
   });
   const chapters = {
     precision: { number: '01', lines: ['Precise object', 'manipulation.'], descriptionHtml: '<strong>Stand a bottle upright</strong>, <strong>pour into a pan</strong>, <strong>pick up bolts</strong>, and <strong>place a ring around a pole.</strong>', clips: ['bottle', 'pour', 'bolts', 'ring'], note: '' },
     deformable: { number: '02', lines: ['Deformable object', 'manipulation.'], descriptionHtml: '<strong>Hang the hat on the tripod</strong> and <strong>fold the towel.</strong>', clips: ['hat', 'towel'], note: '' },
-    language: { number: '03', lines: ['Language', 'following.'], descriptionHtml: '<strong>put the &lt;color&gt; block in the bowl</strong>', clips: ['red', 'blue', 'green', 'yellow'], note: '' }
+    language: { number: '03', lines: ['Language', 'following.'], descriptionHtml: '<strong>Put the &lt;color&gt; block in the bowl.</strong>', clips: ['red', 'blue', 'green', 'yellow'], note: '' }
   };
   const chapterKeys = Object.keys(chapters);
   const selections = { precision: 'bottle', deformable: 'hat', language: 'red' };

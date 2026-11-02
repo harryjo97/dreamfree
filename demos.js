@@ -22,6 +22,7 @@
   const selections = { precision: 'bottle', deformable: 'hat', language: 'red' };
   let chapterKey = 'precision';
   const find = id => document.getElementById(id);
+  const categoryButtons = document.querySelectorAll('.demo-category');
   const asset = (clip, extension) => `assets/demos/${clip.file}.${extension}`;
 
   function nextChapterKey() {
@@ -106,9 +107,11 @@
   function chooseChapter(key) {
     chapterKey = key;
     const chapter = chapters[key];
-    const nextLabel = `Next topic: ${chapterLabel(nextChapterKey())}`;
-    find('demo-next-chapter').setAttribute('aria-label', nextLabel);
-    find('demo-next-chapter').title = nextLabel;
+    categoryButtons.forEach(button => {
+      const selected = button.dataset.chapter === key;
+      button.setAttribute('aria-pressed', String(selected));
+      button.querySelector('.demo-category-action').textContent = selected ? 'Showing' : 'View examples →';
+    });
     find('demo-number').textContent = chapter.number;
     const title = find('demos-title');
     title.replaceChildren(chapter.lines[0], document.createElement('br'), chapter.lines[1]);
@@ -130,10 +133,10 @@
     chooseClip(selections[key]);
   }
 
-  find('demo-next-chapter').addEventListener('click', () => {
-    const next = nextChapterKey();
-    selections[next] = chapters[next].clips[0];
-    chooseChapter(next);
+  categoryButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      if (button.dataset.chapter !== chapterKey) chooseChapter(button.dataset.chapter);
+    });
   });
   find('demo-next-clip').addEventListener('click', () => {
     const next = nextDemo();

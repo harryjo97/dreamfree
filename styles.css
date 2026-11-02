@@ -97,7 +97,7 @@
 .hero { padding-top: 48px; }
 .positioning-headline { margin: 18px auto 0; font-size: 22px; line-height: 1.5; letter-spacing: 0; font-weight: 400; color: var(--muted); }
 .project-name { font-size: 48px; letter-spacing: -1px; font-weight: 700; }
-.paper-title { max-width: 980px; margin: 12px auto 0; font-size: 40px; letter-spacing: -.6px; line-height: 1.2; font-weight: 700; }
+.paper-title { max-width: 980px; margin: 12px auto 0; font-size: 40px; letter-spacing: -.6px; line-height: 1.2; font-weight: 500; }
 .paper-title .method-name, .paper-title .title-emphasis {
   color: var(--blue-dark);
 }
@@ -109,7 +109,8 @@
   text-underline-offset: .16em;
   text-decoration-skip-ink: none;
 }
-.authors { font-size: 17px; margin-top: 22px; }
+.authors { flex-direction: column; font-size: 17px; margin-top: 22px; }
+.author-row { display: flex; justify-content: center; flex-wrap: wrap; gap: inherit; }
 .author-note { font-size: 14px; }
 .kaist-logo { width: 135px; }
 .nav-links, .resource, .text-button, .copy-button { font-size: 15px; }
@@ -128,7 +129,7 @@
 .deployment-story h3, .method-steps h3 { font-size: 24px; }
 .abstract { font-size: 17px; }
 .step-label { font-size: 14px; letter-spacing: .8px; }
-.method-phase-label, .inference > span { display: block; font-size: 13px; color: var(--blue); letter-spacing: 1.5px; font-weight: 700; text-align: center; }
+.method-phase-label, .inference > span { display: block; font-family: var(--font-body); font-size: 18px; color: var(--blue); letter-spacing: 0; font-weight: 600; text-align: center; }
 .inference p { font-size: 17px; }
 .inference small { font-size: 15px; }
 .scaling-finding { display: block; padding: 0 0 44px; }
@@ -212,6 +213,16 @@ pre { font-size: 14px; }
 .deployment-evidence .deployment-story p { font-size: 18px; line-height: 1.65; font-weight: 400; color: #46505e; }
 .deployment-evidence .speed-overview { width: 100%; max-width: 400px; margin: 0 auto; min-width: 0; }
 .speed-overview figcaption { padding-inline: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .deployment-story.reveal-ready > div {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .8s ease, transform .8s cubic-bezier(.22, 1, .36, 1);
+  }
+  .deployment-story.reveal-ready > div:nth-child(2) { transition-delay: .25s; }
+  .deployment-story.reveal-ready > div:nth-child(3) { transition-delay: .5s; }
+  .deployment-story.reveal-ready > div.is-visible { opacity: 1; transform: translateY(0); }
+}
 @media (max-width: 850px) {
   .deployment-evidence { grid-template-columns: 1fr; gap: 28px; }
 }
@@ -246,16 +257,26 @@ pre { font-size: 14px; }
 /* Keep the extra-video method label the same size as other methods. */
 .scaling-table .extra-video th { font-size: inherit; }
 
-/* Match the paper’s textsc styling for the method name. */
-.method-name { font-variant-caps: small-caps; letter-spacing: .01em; }
-
-/* Keep table method names mixed-case and bold. */
-.scaling-table .method-name { font-variant-caps: normal; font-weight: 700; letter-spacing: 0; }
+/* Use consistent mixed-case bold styling for the method name. */
+.method-name { font-family: inherit; font-style: normal; font-variant-caps: normal; font-weight: 700; letter-spacing: inherit; }
 
 /* Explain the conceptual change directly below the three-panel figure. */
 .deployment-summary .backbone-context { display: inline; font-size: .85em; font-weight: 400; color: var(--muted); white-space: nowrap; }
 .tldr em { color: var(--blue-dark); }
 .concept-comparison .concept-caption { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; text-align: left; padding: 0; margin-top: 20px; font-size: 17px; line-height: 1.65; }
+.concept-figure-layers { display: block; position: relative; }
+.concept-figure-layers .concept-panel { position: absolute; inset: 0; }
+/* Clip in the blank gutters at x=1025 and x=1726 of the 2400px-wide figure. */
+.concept-figure-layers .concept-panel[data-concept-stage="1"] { position: relative; clip-path: inset(0 57.291667% 0 0); }
+.concept-panel[data-concept-stage="2"] { clip-path: inset(0 28.083333% 0 42.708333%); }
+.concept-panel[data-concept-stage="3"] { clip-path: inset(0 0 0 71.916667%); }
+@media (prefers-reduced-motion: no-preference) {
+  .concept-comparison.reveal-ready [data-concept-stage="2"] { opacity: 0; --concept-delay: .7s; }
+  .concept-comparison.reveal-ready [data-concept-stage="3"] { opacity: 0; --concept-delay: 1.4s; }
+  .concept-comparison.reveal-ready.is-playing [data-concept-stage="2"],
+  .concept-comparison.reveal-ready.is-playing [data-concept-stage="3"] { animation: concept-reveal .6s ease var(--concept-delay) both; }
+  @keyframes concept-reveal { from { opacity: 0; } to { opacity: 1; } }
+}
 .concept-caption > div { padding: 20px 22px; border-radius: 12px; background: rgba(237, 243, 248, .5); }
 .concept-caption > div:nth-child(2) { background: rgba(238, 245, 239, .5); }
 .concept-caption > div:nth-child(3) { background: rgba(247, 240, 232, .5); }

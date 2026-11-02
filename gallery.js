@@ -10,7 +10,7 @@
     yam: {
       label: 'ABC-130k (YAM)', tasks: window.YAM_GALLERY,
       description: '',
-      training: 'Trained only on 100 hours of ABC-130k video (≈1/35 of its total duration) · No task-specific adaptation.'
+      training: 'Trained on a filtered 100-hour subset of ABC-130k (≈1/35 of its total duration) · No task-specific adaptation.'
     }
   };
   const models = { ours: 'DreamFree', dreamzero: 'DreamZero', pi: 'π₀.₅' };

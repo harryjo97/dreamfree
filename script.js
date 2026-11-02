@@ -31,6 +31,32 @@ document.querySelectorAll('[data-resource]').forEach(button => {
   button.replaceWith(link);
 });
 
+// Reveal each Figure 1 text box once as it enters the viewport.
+const deploymentStory = document.querySelector('.deployment-evidence .deployment-story');
+if (deploymentStory && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-visible');
+      revealObserver.unobserve(entry.target);
+    });
+  }, { threshold: .15, rootMargin: '0px 0px -32px 0px' });
+  deploymentStory.classList.add('reveal-ready');
+  Array.from(deploymentStory.children).forEach(card => revealObserver.observe(card));
+}
+
+// Reveal each comparison panel together with its explanation, once per visit.
+const conceptComparison = document.querySelector('.concept-comparison');
+if (conceptComparison && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const conceptObserver = new IntersectionObserver(entries => {
+    if (!entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .2)) return;
+    conceptComparison.classList.add('is-playing');
+    conceptObserver.disconnect();
+  }, { threshold: .2, rootMargin: '0px 0px -32px 0px' });
+  conceptComparison.classList.add('reveal-ready');
+  conceptObserver.observe(conceptComparison.querySelector('.concept-caption > div'));
+}
+
 const dialog = document.querySelector('#figure-dialog');
 const dialogImage = document.querySelector('#dialog-image');
 document.querySelectorAll('.figure-zoom').forEach(button => button.addEventListener('click', () => {

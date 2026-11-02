@@ -7,13 +7,13 @@
   <meta name="theme-color" content="#ffffff">
   <title>DreamFree: Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=comparison-black-heading">
+  <link rel="stylesheet" href="styles.css?v=faster-concept-sequence">
   <link rel="stylesheet" href="demos-compact.css?v=titillium-web">
-  <link rel="stylesheet" href="demos.css?v=yam-controls">
+  <link rel="stylesheet" href="demos.css?v=category-text-tabs">
   <script src="content.js" defer></script>
   <script src="video-playback.js" defer></script>
-  <script src="script.js" defer></script>
-  <script src="demos.js?v=yam-controls" defer></script>
+  <script src="script.js?v=concept-sequence" defer></script>
+  <script src="demos.js?v=category-previews" defer></script>
   <script src="transfer.js?v=atomic-scope-note" defer></script>
 </head>
 <body>
@@ -30,7 +30,12 @@
       <h1 id="paper-title"><span class="paper-title"><span class="method-name">DreamFree</span>: Future Representation Distillation<br>for <span class="title-emphasis">Imagination-free</span> World Action Models</span></h1>
       <p class="positioning-headline">Imagination-free WAMs, scaled to 14B and DROID-scale data.</p>
       <div class="authors" aria-label="Authors">
-        <span><a data-author="jaehyeongJo">Jaehyeong Jo</a><sup>*</sup></span><span><a data-author="sangwonJang">Sangwon Jang</a><sup>*</sup></span><span><a data-author="sihyunYu">Sihyun Yu</a></span><span><a data-author="seonghyeonYe">Seonghyeon Ye</a></span><span><a data-author="yekyungNah">Yekyung Nah</a></span><span><a data-author="hojungJung">Hojung Jung</a></span><span><a data-author="kiminLee">Kimin Lee</a><sup>†</sup></span><span><a data-author="sungJuHwang">Sung Ju Hwang</a><sup>†</sup></span>
+        <div class="author-row">
+          <span><a data-author="jaehyeongJo">Jaehyeong Jo</a><sup>*</sup></span><span><a data-author="sangwonJang">Sangwon Jang</a><sup>*</sup></span><span><a data-author="sihyunYu">Sihyun Yu</a></span><span><a data-author="seonghyeonYe">Seonghyeon Ye</a></span>
+        </div>
+        <div class="author-row">
+          <span><a data-author="yekyungNah">Yekyung Nah</a></span><span><a data-author="hojungJung">Hojung Jung</a></span><span><a data-author="kiminLee">Kimin Lee</a><sup>†</sup></span><span><a data-author="sungJuHwang">Sung Ju Hwang</a><sup>†</sup></span>
+        </div>
       </div>
       <div class="affiliation"><a href="https://www.kaist.ac.kr/en/" target="_blank" rel="noopener noreferrer" aria-label="KAIST website"><img class="kaist-logo" src="assets/branding/kaist-logo.png" width="400" height="110" alt="KAIST"></a></div>
       <p class="author-note"><sup>*</sup> Equal contribution <span>·</span> <sup>†</sup> Equal advising</p>
@@ -38,19 +43,30 @@
         <a class="resource" data-resource="paper" href="https://drive.google.com/file/d/1WyfPt1ogHSlV1oDhNVypDbmIk93R-OLc/view?usp=drive_link" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h6"/></svg>Paper</a>
         <a class="resource" data-resource="code" data-coming-soon="true" href="https://github.com/harryjo97/dreamfree" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></svg>Code <small>soon</small></a>
         <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>Gallery</a>
-        <a class="resource primary" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
+        <a class="resource" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
-      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br>DreamFree uses a video model’s predictive features to predict actions <em>without generating future videos.</em></p>
+      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br><strong>DreamFree</strong> uses a video model’s predictive features to predict actions <em>without generating future videos.</em></p>
       <div class="deployment-evidence">
         <div class="deployment-story">
           <div><h3>A 14B video backbone running at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success.</p></div>
-          <div><h3>Lower memory use at inference.</h3><p>Without future-video generation or classifier-free guidance (CFG) at inference, <strong>DreamFree can fit on a single A6000 with 48 GB of memory.</strong></p></div>
+          <div><h3>Lower memory use at inference.</h3><p>Without future-video generation or classifier-free guidance (CFG) at inference, <strong><span class="method-name">DreamFree</span> can fit on a single A6000 with 48 GB of memory.</strong></p></div>
           <div><h3>Improves with larger backbones and video-only data.</h3><p>Scaling the video backbone from 5B to 14B improves RoboCasa success from 58.5% to 71.7%. Extra videos raise it to 74.4% without additional action labels.</p></div>
         </div>
         <figure class="paper-figure speed-overview"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 1 success versus inference latency plot"><img src="assets/figures/droid_success_vs_latency_v3.png" width="2400" height="2181" loading="lazy" alt="Figure 1: DreamFree achieves 64% real-world success with 17.8 times lower inference latency than DreamZero, which achieves 56%; pi 0.5 achieves 16% success with comparable latency to DreamFree."></button><figcaption>Figure 1 · Real-world DROID evaluation on H200 GPUs. Latency is measured per action chunk.</figcaption></figure>
       </div>
       <section class="demo-showcase" id="demos" aria-labelledby="droid-demo-title">
         <div class="demo-section-top"><h2 class="demo-dataset-title" id="droid-demo-title">DROID <span>(Franka Panda)</span></h2><button id="demo-motion" class="text-button" type="button">Pause videos</button></div>
+        <div class="demo-categories" role="group" aria-label="Choose a DROID task category">
+          <button class="demo-category" type="button" data-chapter="precision" aria-pressed="true" aria-controls="demo-stage">
+            <span class="demo-category-copy"><span class="demo-category-number" aria-hidden="true">01</span><span class="demo-category-title">Precise object manipulation.</span><span class="demo-category-action" aria-hidden="true">Showing</span></span>
+          </button>
+          <button class="demo-category" type="button" data-chapter="deformable" aria-pressed="false" aria-controls="demo-stage">
+            <span class="demo-category-copy"><span class="demo-category-number" aria-hidden="true">02</span><span class="demo-category-title">Deformable object manipulation.</span><span class="demo-category-action" aria-hidden="true">View examples →</span></span>
+          </button>
+          <button class="demo-category" type="button" data-chapter="language" aria-pressed="false" aria-controls="demo-stage">
+            <span class="demo-category-copy"><span class="demo-category-number" aria-hidden="true">03</span><span class="demo-category-title">Language following.</span><span class="demo-category-action" aria-hidden="true">View examples →</span></span>
+          </button>
+        </div>
         <div id="demo-stage" class="demo-stage" role="group" aria-labelledby="demos-title">
           <div class="demo-story">
             <span class="demo-story-number" id="demo-number" aria-hidden="true">01</span>
@@ -58,7 +74,6 @@
             <p id="demo-description"><strong>Stand a bottle upright</strong>, <strong>pour into a pan</strong>, <strong>pick up bolts</strong>, and <strong>place a ring around a pole.</strong></p>
             <div class="demo-selection-bar">
               <div id="demo-choices" class="demo-choices" role="group" aria-label="Choose a demonstration"></div>
-              <button id="demo-next-chapter" class="demo-next-chapter" type="button" aria-label="Next topic: Deformable object manipulation" title="Next topic: Deformable object manipulation"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5"/></svg></button>
             </div>
             <p id="demo-note" class="demo-note"></p>
             <a class="demo-evaluation-link" href="gallery.html">Explore the DROID evaluation <span aria-hidden="true">↗</span></a>
@@ -125,25 +140,31 @@
     <section class="section container" id="overview" aria-labelledby="overview-title">
       <div class="section-heading"><h2 id="overview-title">What makes imagination-free WAMs scale?</h2></div>
       <figure class="paper-figure concept-comparison">
-        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree"><img src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future videos; Fast-WAM co-trains video denoising and action prediction but omits video generation at inference; DreamFree distills predictive knowledge from a frozen video diffusion model into a predictive visual encoder."></button>
+        <button class="figure-zoom" type="button" aria-label="Enlarge comparison of joint WAMs, Fast-WAM, and DreamFree">
+          <span class="concept-figure-layers">
+            <img class="concept-panel" data-concept-stage="1" src="assets/figures/fastwam_test.png" width="2400" height="784" alt="Training and inference comparison: joint WAMs generate future videos; Fast-WAM co-trains video denoising and action prediction but omits video generation at inference; DreamFree distills predictive knowledge from a frozen video diffusion model into a predictive visual encoder.">
+            <img class="concept-panel" data-concept-stage="2" src="assets/figures/fastwam_test.png" width="2400" height="784" alt="" aria-hidden="true">
+            <img class="concept-panel" data-concept-stage="3" src="assets/figures/fastwam_test.png" width="2400" height="784" alt="" aria-hidden="true">
+          </span>
+        </button>
         <figcaption class="concept-caption">
-          <div><h3>Joint WAMs <small>(e.g., DreamZero)</small></h3><p>Generate <strong>future videos to guide actions</strong>. Iterative denoising is slow, and video prediction errors can affect actions.</p></div>
-          <div><h3>Fast-WAM</h3><p>Trains video denoising and action prediction together, but <strong>skips video generation at inference</strong>. Denoising alone does not ensure the shared features capture future information.</p></div>
-          <div><h3><span class="method-name">DreamFree</span></h3><p><strong>Distills a frozen video diffusion model’s predictive knowledge into a visual encoder.</strong> Predicts actions from the current observation without generating future videos.</p></div>
+          <div data-concept-stage="1"><h3>Joint WAMs <small>(e.g., DreamZero)</small></h3><p>Generate <strong>future videos to guide actions</strong>. Iterative denoising is slow, and video prediction errors can affect actions.</p></div>
+          <div data-concept-stage="2"><h3>Fast-WAM</h3><p>Trains video denoising and action prediction together, but <strong>skips video generation at inference</strong>. Denoising alone does not ensure the shared features capture future information.</p></div>
+          <div data-concept-stage="3"><h3><span class="method-name">DreamFree</span></h3><p><strong>Distills a frozen video diffusion model’s predictive knowledge into a visual encoder.</strong> Predicts actions from the current observation without generating future videos.</p></div>
         </figcaption>
       </figure>
       <div class="alignment-insight">
-        <p>DreamFree adds <strong>future representation distillation</strong> to video generative training, making the video model’s predictive knowledge available in the features used for action prediction. This helps translate larger video backbones into better control; generative training alone shows little benefit from scaling.</p>
+        <p><span class="method-name">DreamFree</span> adds <strong>future representation distillation</strong> to video generative training, making the video model’s predictive knowledge available in the features used for action prediction. This helps translate larger video backbones into better control; generative training alone shows little benefit from scaling.</p>
       </div>
     </section>
 
     <section class="section section-tint" id="method" aria-labelledby="method-title"><div class="container">
       <div class="section-heading"><h2 id="method-title">Make video priors useful without imagining videos.</h2><p>An explicit alignment loss makes current-frame features predictive of the future.</p></div>
-      <p class="method-phase-label">AT TRAINING</p>
+      <p class="method-phase-label">At training</p>
       <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 2 method diagram"><img src="assets/figures/method_v2.png" width="2400" height="615" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption>Figure 2 · Future frames supervise predictive representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
       
       <div class="method-steps"><article><span class="step-label">STAGE 1</span><h3>Distill predictive representations</h3><p>A frozen video diffusion teacher observes current and future frames. An alignment loss trains the current-frame features to predict the teacher’s future-aware representations, alongside the original video generative objective. This directly supervises the features used for control and needs no action labels.</p></article><article><span class="step-label">STAGE 2</span><h3>Learn to read out actions</h3><p>Using action-labeled robot demonstrations, a readout module extracts action-relevant features from the visual encoder. An action decoder maps these features to executable action chunks.</p></article></div>
-      <div class="inference" id="inference"><span>AT INFERENCE</span>
+      <div class="inference" id="inference"><span>At inference</span>
         <figure class="paper-figure inference-figure">
           <button class="figure-zoom" type="button" aria-label="Enlarge Figure 3 inference diagram"><img src="assets/figures/inference.png" width="2400" height="307" loading="lazy" alt="Current frame f zero and language instruction ell enter a 5B or 14B Visual Encoder in one forward pass. Readout feeds a 1B Action DiT, which denoises an action chunk a one through a h."></button>
           <figcaption>Figure 3 · The <strong>Visual Encoder</strong> processes the current frame <span class="math-symbol"><i>f</i><sub>0</sub></span> and instruction <span class="math-symbol">ℓ</span> in one forward pass. <strong>Readout</strong> extracts action-relevant features, and the 1B <strong>Action DiT</strong> denoises the action chunk <span class="math-symbol"><i>a</i><sub>1</sub>, …, <i>a</i><sub>h</sub></span>. No future-video generation is needed.</figcaption>
@@ -169,7 +190,7 @@
             <tr class="ours"><th scope="row"><span class="method-name">DreamFree</span></th><td>58.5</td><td>71.7</td><td>+13.2 pp</td></tr>
             <tr class="ours extra-video"><th scope="row" aria-label="DreamFree + extra video">+ extra video</th><td>68.8</td><td>74.4</td><td>+5.6 pp</td></tr>
           </tbody></table><p class="scaling-note">Gain: 5B → 14B within each row.</p>
-            <div class="scaling-takeaway"><p>DreamFree effectively leverages <strong>video priors without imagination</strong> and benefits from <strong>additional video-only data</strong>.</p></div>
+            <div class="scaling-takeaway"><p><span class="method-name">DreamFree</span> effectively leverages <strong>video priors without imagination</strong> and benefits from <strong>additional video-only data</strong>.</p></div>
           </div>
         </div>
       </article>
@@ -184,7 +205,7 @@
         </div>
         <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 4 real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 4 · Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
       </article>
-      <article class="finding"><div class="finding-copy"><h3>Real-time control at 11 Hz</h3><p>With its 14B video backbone, DreamFree averages <strong>91 ms per action chunk on a single H200</strong>. Inference is <strong>17.8× faster than DreamZero</strong>, without video step distillation or asynchronous execution.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 5 latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 5 · Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
+      <article class="finding"><div class="finding-copy"><h3>Real-time control at 11 Hz</h3><p>With its 14B video backbone, <span class="method-name">DreamFree</span> averages <strong>91 ms per action chunk on a single H200</strong>. Inference is <strong>17.8× faster than DreamZero</strong>, without video step distillation or asynchronous execution.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 5 latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 5 · Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
     </section>
 
     <section class="section section-tint evaluation-entry" id="examples" aria-labelledby="examples-title"><div class="container">
@@ -194,7 +215,7 @@
 
     <section class="section container transfer transfer-study" id="video-transfer" aria-labelledby="transfer-title">
       <h2 id="transfer-title">Task transfer from video demonstrations</h2>
-      <p class="reading-width transfer-intro">DreamFree learns from video-only demonstrations through its predictive encoder.</p>
+      <p class="reading-width transfer-intro"><span class="method-name">DreamFree</span> learns from video-only demonstrations through its predictive encoder.</p>
       <p id="transfer-definition" class="transfer-definition"><strong>Atomic tasks</strong> use one skill; <strong>composite tasks</strong> combine several skills in sequence.</p>
       <div class="transfer-tabs" role="tablist" aria-label="Video transfer setting" hidden>
         <button id="transfer-tab-same" role="tab" aria-selected="true" aria-controls="transfer-panel" data-transfer-group="same">Atomic → Composite</button>
@@ -282,7 +303,7 @@
       </div>
     </section>
 
-    <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><p class="citation-note">Draft citation. Publication details will be updated with the paper release.</p><pre><code id="bibtex">@misc{jo2026dreamfree,
+    <section class="section container citation-section" aria-labelledby="citation-title"><div class="citation-header"><div><h2 id="citation-title">Citation</h2></div><button id="copy-citation" class="copy-button" type="button">Copy BibTeX</button></div><pre><code id="bibtex">@misc{jo2026dreamfree,
   title  = {Future Representation Distillation for Imagination-free World Action Models},
   author = {Jaehyeong Jo and Sangwon Jang and Sihyun Yu and
             Seonghyeon Ye and Yekyung Nah and Hojung Jung and

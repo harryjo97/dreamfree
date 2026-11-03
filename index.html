@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#ffffff">
   <title>DreamFree: Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=faster-concept-sequence">
+  <link rel="stylesheet" href="styles.css?v=tldr-callout">
   <link rel="stylesheet" href="demos-compact.css?v=titillium-web">
   <link rel="stylesheet" href="demos.css?v=category-text-tabs">
   <script src="content.js" defer></script>
@@ -45,7 +45,7 @@
         <a class="resource" href="gallery.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4V8Z"/></svg>Gallery</a>
         <a class="resource" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
-      <p class="tldr"><strong>WAM-like training, VLA-like inference.</strong><br><strong>DreamFree</strong> uses a video model’s predictive features to predict actions <em>without generating future videos.</em></p>
+      <p class="tldr"><strong>TL;DR:</strong> DreamFree scales imagination-free WAMs through future representation distillation that effectively leverages the predictive priors of pretrained video diffusion models.</p>
       <div class="deployment-evidence">
         <div class="deployment-story">
           <div><h3>A 14B video backbone running at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success.</p></div>
@@ -159,7 +159,7 @@
     </section>
 
     <section class="section section-tint" id="method" aria-labelledby="method-title"><div class="container">
-      <div class="section-heading"><h2 id="method-title">Make video priors useful without imagining videos.</h2><p>An explicit alignment loss makes current-frame features predictive of the future.</p></div>
+      <div class="section-heading"><h2 id="method-title">Make video priors useful without imagining videos.</h2><p>WAM-like training, VLA-like inference.</p></div>
       <p class="method-phase-label">At training</p>
       <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 2 method diagram"><img src="assets/figures/method_v2.png?v=20261103" width="2400" height="617" loading="lazy" alt="DreamFree's two-stage architecture: future representation distillation from a frozen video model, followed by training an action readout and decoder."></button><figcaption>Figure 2 · Future frames supervise predictive representation learning during training. At deployment, the encoder needs only the current observation and instruction.</figcaption></figure>
       
@@ -205,7 +205,7 @@
         </div>
         <figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 4 real-world evaluation chart"><img src="assets/figures/droid_real_two_row.png" width="2400" height="983" loading="lazy" alt="Per-task success and progress on 10 real-world DROID tasks, comparing DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 4 · Per-task results include deformable objects, object rearrangement, and sequential manipulation.</figcaption></figure>
       </article>
-      <article class="finding"><div class="finding-copy"><h3>Real-time control at 11 Hz</h3><p>With its 14B video backbone, <span class="method-name">DreamFree</span> averages <strong>91 ms per action chunk on a single H200</strong>. Inference is <strong>17.8× faster than DreamZero</strong>, without video step distillation or asynchronous execution.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 5 latency and completion time chart"><img src="assets/figures/droid_latency_completion.png" width="2400" height="1304" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 5 · Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
+      <article class="finding"><div class="finding-copy"><h3>Real-time control at 11 Hz</h3><p>With its 14B video backbone, <span class="method-name">DreamFree</span> averages <strong>91 ms per action chunk on a single H200</strong>. Inference is <strong>17.8× faster than DreamZero</strong>, without video step distillation or asynchronous execution.</p></div><figure class="paper-figure"><button class="figure-zoom" type="button" aria-label="Enlarge Figure 5 latency and completion time chart"><img src="assets/figures/droid_latency_completion.png?v=20261103" width="2400" height="1204" loading="lazy" alt="Inference latency and task completion time comparisons for DreamFree, DreamZero, and pi 0.5."></button><figcaption>Figure 5 · Inference latency on NVIDIA H200 GPUs and task completion time.</figcaption></figure></article>
     </section>
 
     <section class="section section-tint evaluation-entry" id="examples" aria-labelledby="examples-title"><div class="container">

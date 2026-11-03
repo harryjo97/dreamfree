@@ -121,7 +121,8 @@
 .deployment-summary .memory-note { font-size: 16px; margin-top: 5px; }
 .teaser figcaption, .paper-figure figcaption { font-size: 15px; line-height: 1.65; }
 .preview-label { font-size: 12px; letter-spacing: .3px; text-transform: none; }
-.tldr { border: 0; background: none; text-align: center; padding: 0; margin-top: 24px; font-size: 18px; }
+.tldr { border: 0; border-left: 4px solid #7baaf7; border-radius: 4px; background: #eef4fe; text-align: left; padding: 16px 24px; margin-top: 24px; font-size: 18px; line-height: 1.5; }
+.tldr strong { color: #4285f4; }
 .section { padding-block: 44px; }
 .section-heading h2 { font-size: 34px; }
 .section-heading > p, .section .reading-width { font-size: 18px; }
@@ -175,7 +176,7 @@ pre { font-size: 14px; }
   .resource-links { flex-wrap: wrap; }
   .deployment-summary strong { font-size: 18px; }
   .deployment-summary .hardware-context, .deployment-summary .memory-note { font-size: 15px; }
-  .tldr { font-size: 17px; }
+  .tldr { padding: 14px 18px; font-size: 17px; }
   .teaser figcaption, .paper-figure figcaption { font-size: 14px; }
   .section { padding-block: 32px; }
   .section-heading h2 { font-size: 29px; }

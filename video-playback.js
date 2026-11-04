@@ -72,15 +72,16 @@
       video.pause();
     },
     refresh,
+    toggle(scope) {
+      const state = scopeState(scope);
+      state.paused = !state.paused;
+      refreshScope(scope);
+      updateButtons(scope);
+    },
     bindToggle(button, scope) {
       if (!button) return;
       scopeState(scope).buttons.add(button);
-      button.addEventListener('click', () => {
-        const state = scopeState(scope);
-        state.paused = !state.paused;
-        refreshScope(scope);
-        updateButtons(scope);
-      });
+      button.addEventListener('click', () => window.DreamFreeMedia.toggle(scope));
       updateButtons(scope);
     }
   };

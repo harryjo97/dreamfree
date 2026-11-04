@@ -31,6 +31,55 @@ document.querySelectorAll('[data-resource]').forEach(button => {
   button.replaceWith(link);
 });
 
+const teaserVideo = document.getElementById('teaser-video');
+if (teaserVideo && window.DreamFreeMedia) {
+  window.DreamFreeMedia.register(teaserVideo, 'teaser');
+  const toggle = document.getElementById('teaser-toggle');
+  const updateToggle = () => toggle.setAttribute('aria-label', teaserVideo.paused ? 'Play teaser' : 'Pause teaser');
+  toggle.addEventListener('click', () => window.DreamFreeMedia.toggle('teaser'));
+  teaserVideo.addEventListener('play', updateToggle);
+  teaserVideo.addEventListener('pause', updateToggle);
+  updateToggle();
+  const seek = document.getElementById('teaser-seek');
+  const elapsed = document.getElementById('teaser-current');
+  const total = document.getElementById('teaser-duration');
+  let scrubbing = false;
+  const formatTime = seconds => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+  const updateTimeline = () => {
+    const duration = teaserVideo.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    seek.max = String(duration);
+    if (!scrubbing) seek.value = String(teaserVideo.currentTime);
+    const position = Number(seek.value);
+    elapsed.textContent = formatTime(position);
+    total.textContent = formatTime(duration);
+    seek.style.setProperty('--seek-progress', `${position / duration * 100}%`);
+    seek.setAttribute('aria-valuetext', `${formatTime(position)} of ${formatTime(duration)}`);
+  };
+  const finishScrubbing = () => {
+    scrubbing = false;
+    updateTimeline();
+    window.DreamFreeMedia.refresh(teaserVideo);
+  };
+  seek.addEventListener('pointerdown', () => {
+    scrubbing = true;
+    teaserVideo.pause();
+  });
+  seek.addEventListener('input', () => {
+    if (!Number.isFinite(teaserVideo.duration)) return;
+    teaserVideo.currentTime = Number(seek.value);
+    updateTimeline();
+  });
+  seek.addEventListener('change', finishScrubbing);
+  seek.addEventListener('pointerup', finishScrubbing);
+  seek.addEventListener('pointercancel', finishScrubbing);
+  seek.addEventListener('blur', finishScrubbing);
+  teaserVideo.addEventListener('loadedmetadata', updateTimeline);
+  teaserVideo.addEventListener('durationchange', updateTimeline);
+  teaserVideo.addEventListener('timeupdate', updateTimeline);
+  updateTimeline();
+}
+
 // Reveal each Figure 1 text box once as it enters the viewport.
 const deploymentStory = document.querySelector('.deployment-evidence .deployment-story');
 if (deploymentStory && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {

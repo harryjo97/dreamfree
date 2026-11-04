@@ -7,12 +7,12 @@
   <meta name="theme-color" content="#ffffff">
   <title>DreamFree: Future Representation Distillation for Imagination-free World Action Models</title>
   <link rel="icon" href="assets/favicon.svg?v=lightning" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=tldr-size">
+  <link rel="stylesheet" href="styles.css?v=teaser-bar-size">
   <link rel="stylesheet" href="demos-compact.css?v=titillium-web">
   <link rel="stylesheet" href="demos.css?v=category-text-tabs">
   <script src="content.js" defer></script>
-  <script src="video-playback.js" defer></script>
-  <script src="script.js?v=concept-sequence" defer></script>
+  <script src="video-playback.js?v=scope-toggle" defer></script>
+  <script src="script.js?v=teaser-click-seek" defer></script>
   <script src="demos.js?v=droid-instructions" defer></script>
   <script src="transfer.js?v=atomic-scope-note" defer></script>
 </head>
@@ -49,6 +49,17 @@
         <a class="resource" href="#demos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 11 7-11 7V5Z"/></svg>Video examples</a>
       </div>
       <p class="tldr"><strong>TL;DR:</strong> DreamFree scales imagination-free WAMs through future representation distillation that effectively leverages the predictive priors of pretrained video diffusion models.</p>
+      <figure class="hero-teaser" aria-label="DreamFree teaser">
+        <div class="hero-teaser-media">
+          <video id="teaser-video" src="assets/teaser/dreamfree-teaser-1080p60.mp4" poster="assets/teaser/dreamfree-teaser-poster.jpg" width="1920" height="1080" muted loop playsinline preload="metadata" aria-label="DreamFree teaser"></video>
+          <button id="teaser-toggle" type="button" aria-label="Pause teaser" aria-controls="teaser-video"></button>
+        </div>
+        <div class="hero-teaser-controls">
+          <span id="teaser-current" aria-hidden="true">0:00</span>
+          <input id="teaser-seek" type="range" min="0" max="103.45" step="0.1" value="0" aria-label="Seek teaser" aria-controls="teaser-video" aria-valuetext="0:00 of 1:43">
+          <span id="teaser-duration" aria-hidden="true">1:43</span>
+        </div>
+      </figure>
       <div class="deployment-evidence">
         <div class="deployment-story">
           <div><h3>A 14B video backbone running at 11 Hz.</h3><p><span class="method-name">DreamFree</span> achieves <strong>11 Hz on a single H200</strong> and a <strong>17.8× inference speedup over DreamZero</strong>, while improving real-world success.</p></div>

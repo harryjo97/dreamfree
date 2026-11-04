@@ -205,7 +205,20 @@ pre { font-size: 14px; }
 
 /* Figure 1 speed/accuracy evidence alongside the deployment overview. */
 .deployment-evidence { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 32px; align-items: center; border-top: 1px solid var(--line); padding-top: 32px; text-align: left; }
-.tldr + .deployment-evidence { margin-top: 32px; }
+.tldr + .deployment-evidence, .hero-teaser + .deployment-evidence { margin-top: 32px; }
+.hero-teaser { margin: 24px 0 0; }
+.hero-teaser-media { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.hero-teaser video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; }
+#teaser-toggle { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+#teaser-toggle:focus-visible { outline: 2px solid #9fb8d5; outline-offset: -4px; border-radius: 8px; }
+.hero-teaser-controls { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+#teaser-seek { --seek-progress: 0%; appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 32px; margin: 0; padding: 0; background: transparent; cursor: pointer; touch-action: pan-y; }
+#teaser-seek::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--blue-dark) var(--seek-progress), #e0e5eb var(--seek-progress)); }
+#teaser-seek::-moz-range-track { height: 6px; border-radius: 3px; background: #e0e5eb; }
+#teaser-seek::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--blue-dark); }
+#teaser-seek::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--blue-dark); }
+#teaser-seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--blue-dark); }
+#teaser-seek:focus-visible { outline: 2px solid #9fb8d5; outline-offset: 3px; border-radius: 3px; }
 .deployment-evidence .deployment-story { display: grid; grid-template-columns: 1fr; gap: 16px; min-width: 0; border: 0; padding: 0; }
 .deployment-evidence .deployment-story > div { padding: 20px 22px; border-radius: 12px; background: rgba(237, 243, 248, .5); }
 .deployment-evidence .deployment-story > div:nth-child(2) { background: rgba(238, 245, 239, .5); }

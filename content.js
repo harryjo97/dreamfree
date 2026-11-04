@@ -1,6 +1,6 @@
 // Replace media paths and resource links here as the project is finalized.
 window.DREAMFREE = {
-  paperUrl: 'https://drive.google.com/file/d/1WyfPt1ogHSlV1oDhNVypDbmIk93R-OLc/view?usp=drive_link',
+  paperUrl: 'https://arxiv.org/abs/2611.04527',
   codeUrl: 'https://github.com/harryjo97/dreamfree',
   // 개인사이트 URL을 따옴표 안에 입력하세요. 빈칸이면 일반 이름으로 표시됩니다.
   authorLinks: {

@@ -139,8 +139,8 @@ def _libero_init_state_torch_load_compat():
 
 
 def _validate_eval_cfg(cfg: DictConfig) -> None:
-    if cfg.ckpt is None:
-        raise ValueError("cfg.ckpt must not be None.")
+    if cfg.checkpoint_path is None:
+        raise ValueError("cfg.checkpoint_path must not be None.")
     _resolve_benchmark_variant(cfg)
     env_num = int(cfg.EVALUATION.get("env_num", 1))
     if env_num != 1:
@@ -222,7 +222,7 @@ def _build_policy(
     options = dict(cfg.EVALUATION)
     options.setdefault("seed", cfg.get("seed", 42))
     options.update(
-        ckpt_setting=str(ckpt_path),
+        checkpoint_path=str(ckpt_path),
         dataset_stats_path=str(dataset_stats_path),
         mixed_precision=cfg.get("mixed_precision", "bf16"),
         load_text_encoder=cfg.model.get("load_text_encoder", True),
@@ -497,7 +497,7 @@ def eval_single_process(cfg: DictConfig):
     )
     if cfg.get("seed") is not None:
         set_global_seed(int(cfg.seed), get_worker_init_fn=False)
-    ckpt_path = libero_eval._resolve_path(str(cfg.ckpt), base=PROJECT_ROOT)
+    ckpt_path = libero_eval._resolve_path(str(cfg.checkpoint_path), base=PROJECT_ROOT)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
     checkpoint_metadata = libero_eval._load_checkpoint_metadata(ckpt_path)

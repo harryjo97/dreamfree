@@ -7,4 +7,4 @@ model_base_path: ./assets/models
 output_dir: ./outputs/stage2_robotwin_14b
 stage1_checkpoint: ""
 action_dit_pretrained_path: ""
-pretrained_norm_stats: null
+dataset_stats_path: null

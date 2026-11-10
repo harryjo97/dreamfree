@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from dreamfree.data import yam
 from dreamfree.data.lerobot.cached_latent_dataset import stage2_latent_cache_expected_contract
-from dreamfree.data.robocasa_visual import required_robocasa_visual_preprocess_id
 from dreamfree.training.stage0.config import Stage0Config
 from dreamfree.training.stage0.constants import WAN22_A14B_LATENT_FRAME0_MODES
 
@@ -26,12 +26,12 @@ def _stage0_latent_cache_expected_contract(cfg: Stage0Config) -> dict[str, Any]:
         num_frames=_stage0_raw_video_frames(cfg),
         action_video_freq_ratio=int(getattr(cfg, "raw_frame_stride")),
     )
-    visual_preprocess_id = _stage0_visual_preprocess_id(cfg)
-    if visual_preprocess_id is not None:
-        contract["visual_preprocess_id"] = visual_preprocess_id
-        contract["concat_layout"] = str(getattr(cfg, "concat_multi_camera"))
+    if str(cfg.camera_layout).startswith("robocasa_dreamzero_"):
+        contract["concat_layout"] = str(getattr(cfg, "camera_layout"))
         if contract["video_model_family"] == "wan22_i2v_a14b":
             contract["require_i2v_first_latent_equality"] = True
+    if cfg.dataset_name in yam.DATASET_NAMES:
+        contract["abc_contract"] = yam.PRESETS[cfg.dataset_name].contract
     return contract
 
 
@@ -45,13 +45,3 @@ def _stage0_raw_video_frames(cfg: Stage0Config) -> int:
             f"clip_frames must be greater than 1 for cached latents, got {clip_frames}."
         )
     return (clip_frames - 1) * raw_frame_stride + 1
-
-
-def _stage0_visual_preprocess_id(cfg: Stage0Config) -> str | None:
-    return required_robocasa_visual_preprocess_id(
-        dataset_name=getattr(cfg, "dataset_name", ""),
-        concat_multi_camera=getattr(cfg, "concat_multi_camera", ""),
-        height=getattr(cfg, "height", -1),
-        width=getattr(cfg, "width", -1),
-        video_model_family=getattr(cfg, "video_model_family", ""),
-    )

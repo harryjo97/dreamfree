@@ -46,9 +46,9 @@ class Stage0Config:
     val_epoch_size: int = 512
     val_fraction: float = 0.01
     video_backend: str | None = None
-    concat_multi_camera: str = ROBOTWIN_CONCAT_MULTI_CAMERA
+    camera_layout: str = ROBOTWIN_CONCAT_MULTI_CAMERA
     use_cached_latents: bool = False
-    stage0_latent_cache_dir: str | None = None
+    video_latent_cache_dir: str | None = None
     per_device_batch_size: int = 1
     gradient_accumulation_steps: int = 8
     num_workers: int = 4

@@ -17,8 +17,6 @@ from typing import Any
 
 import torch
 
-from dreamfree.evaluation.droid.deploy_policy import build_droid_image_tensor
-from dreamfree.evaluation.droid.deploy_policy_optimized import build_policy_from_args
 from dreamfree.evaluation.droid_real.image_preprocessing import (
     IMAGE_KEYS,
     PREPROCESSING_FORMAT,
@@ -28,6 +26,8 @@ from dreamfree.evaluation.droid_real.image_preprocessing import (
     transport_dtype_from_format,
 )
 from dreamfree.evaluation.droid_real.policy_rpc import PICKLE_PROTOCOL, PolicyRpcServer
+from dreamfree.evaluation.droid_sim.deploy_policy import build_droid_image_tensor
+from dreamfree.evaluation.droid_sim.deploy_policy_optimized import build_policy_from_args
 
 NATIVE_POLICY_RUNTIME = "dreamfree_stage2_student_native_optimized"
 OPTIMIZED_NATIVE_POLICY_RUNTIME = "dreamfree_stage2_student_native_optimized"
@@ -121,22 +121,24 @@ def _parse_args(
     argv: Sequence[str] | None = None, *, description: str | None = None
 ) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description or __doc__)
-    parser.add_argument("--ckpt", required=True, help="DreamFree Stage 2 checkpoint directory.")
+    parser.add_argument(
+        "--checkpoint-path", "--ckpt", required=True, help="DreamFree Stage 2 checkpoint directory."
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6100)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--mixed-precision", default="bf16", choices=("no", "fp16", "bf16"))
     parser.add_argument("--droid-dataset-root", default="./assets")
     parser.add_argument("--dataset-stats-path", default=None)
-    parser.add_argument("--replan-steps", type=int, default=8)
-    parser.add_argument("--num-inference-steps", type=int, default=10)
+    parser.add_argument("--replan-steps", type=int, default=24)
+    parser.add_argument("--num-inference-steps", type=int, default=24)
     parser.add_argument("--action-sampler", default="euler", choices=("euler", "unipc"))
     parser.add_argument("--action-infer-shift", type=float, default=None)
     parser.add_argument("--action-unipc-solver-order", type=int, default=2)
     parser.add_argument("--action-unipc-solver-type", default="bh2", choices=("bh1", "bh2"))
     parser.add_argument("--action-unipc-lower-order-final", default="true")
     parser.add_argument("--action-unipc-disable-corrector", default=None)
-    parser.add_argument("--rand-device", default="cpu")
+    parser.add_argument("--noise-device", "--rand-device", default="cpu")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--random-action-noise", action="store_true")
     parser.add_argument("--action-noise-seed", type=_action_noise_seed, default=None)
@@ -155,7 +157,7 @@ def _parse_args(
         "--action-cuda-graph",
         default="auto",
         choices=("auto", "true", "false"),
-        help="Replay the validated 16-step Euler action loop with CUDA graphs.",
+        help="Replay the validated 16- or 24-step Euler action loop with CUDA graphs.",
     )
     parser.add_argument(
         "--vae-first-frame-only",
@@ -164,6 +166,7 @@ def _parse_args(
         help="Encode only the consumed first latent frame in the validated 14B visual path.",
     )
     parser.add_argument(
+        "--encoder-cuda-graph",
         "--stage1-cuda-graph",
         default="auto",
         choices=("auto", "true", "false"),
@@ -263,15 +266,17 @@ def run_server(
     if args.action_cuda_graph == "true" and (
         policy_runtime != OPTIMIZED_NATIVE_POLICY_RUNTIME
         or args.action_sampler != "euler"
-        or args.num_inference_steps != 16
+        or args.num_inference_steps not in (16, 24)
     ):
-        raise ValueError("--action-cuda-graph=true requires optimized 14B and 16-step Euler.")
-    if (args.vae_first_frame_only == "true" or args.stage1_cuda_graph == "true") and (
+        raise ValueError(
+            "--action-cuda-graph=true requires optimized 14B and 16- or 24-step Euler."
+        )
+    if (args.vae_first_frame_only == "true" or args.encoder_cuda_graph == "true") and (
         policy_runtime != OPTIMIZED_NATIVE_POLICY_RUNTIME
         or args.action_sampler != "euler"
-        or args.num_inference_steps != 16
+        or args.num_inference_steps not in (16, 24)
     ):
-        raise ValueError("Visual optimizations require optimized 14B and 16-step Euler.")
+        raise ValueError("Visual optimizations require optimized 14B and 16- or 24-step Euler.")
     if args.vae_first_frame_only == "true" and args.compile_auxiliary not in (None, "none"):
         raise ValueError(
             "--vae-first-frame-only=true requires --compile-auxiliary=none; compiled prefix failed numerical validation."
@@ -319,7 +324,7 @@ def _serve_policy(
             return function(*args, **kwargs)
         return executor.submit(function, *args, **kwargs).result()
 
-    resolved_ckpt = str(Path(args.ckpt).expanduser().resolve())
+    resolved_ckpt = str(Path(args.checkpoint_path).expanduser().resolve())
     resolved_dataset_root = str(Path(args.droid_dataset_root).expanduser().resolve())
     resolved_dataset_stats_path = (
         None
@@ -330,7 +335,7 @@ def _serve_policy(
     policy = call_policy(
         policy_builder,
         {
-            "ckpt_setting": resolved_ckpt,
+            "checkpoint_path": resolved_ckpt,
             "device": args.device,
             "mixed_precision": args.mixed_precision,
             "droid_dataset_root": resolved_dataset_root,
@@ -343,7 +348,7 @@ def _serve_policy(
             "action_unipc_solver_type": args.action_unipc_solver_type,
             "action_unipc_lower_order_final": args.action_unipc_lower_order_final,
             "action_unipc_disable_corrector": args.action_unipc_disable_corrector,
-            "rand_device": args.rand_device,
+            "noise_device": args.noise_device,
             "seed": policy_seed,
             "action_noise_seed": args.action_noise_seed,
             "readout_active_num_queries": args.readout_active_num_queries,
@@ -353,7 +358,7 @@ def _serve_policy(
             "compile_auxiliary": args.compile_auxiliary,
             "action_cuda_graph": args.action_cuda_graph,
             "vae_first_frame_only": args.vae_first_frame_only,
-            "stage1_cuda_graph": args.stage1_cuda_graph,
+            "encoder_cuda_graph": args.encoder_cuda_graph,
             "fuse_qkv": args.fuse_qkv,
             "cudnn_benchmark": args.cudnn_benchmark,
             "load_text_encoder": True,
@@ -405,14 +410,14 @@ def _serve_policy(
         "rpc_protocol_version": RPC_PROTOCOL_VERSION,
         "serialization": f"pickle_protocol_{PICKLE_PROTOCOL}",
         "transport_security": "localhost_only_use_ssh_tunnel",
-        "checkpoint_path": resolved_ckpt,
+        "checkpoint_path": str(policy.stage2_checkpoint_path),
         "checkpoint_type": checkpoint_type,
         "host": args.host,
         "port": int(args.port),
         "device": args.device,
         "mixed_precision": args.mixed_precision,
         "droid_dataset_root": resolved_dataset_root,
-        "dataset_stats_path": resolved_dataset_stats_path,
+        "dataset_stats_path": str(policy.dataset_stats_path),
         "observation_keys": list(OBSERVATION_KEYS),
         "image_preprocessing": image_preprocessing_info(policy.model_dtype),
         "action_space": "joint_position",
@@ -433,7 +438,7 @@ def _serve_policy(
         "action_unipc_solver_type": policy.action_unipc_solver_type,
         "action_unipc_lower_order_final": bool(policy.action_unipc_lower_order_final),
         "action_unipc_disable_corrector": list(policy.action_unipc_disable_corrector),
-        "rand_device": args.rand_device,
+        "noise_device": args.noise_device,
         "seed": policy_seed,
         "policy_seed": policy_seed,
         "random_action_noise": bool(args.random_action_noise),

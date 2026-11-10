@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 import torch
 
-from dreamfree.evaluation.droid.deploy_policy_optimized import OptimizedDroidInferenceMixin
+from dreamfree.evaluation.droid_sim.deploy_policy_optimized import OptimizedDroidInferenceMixin
 from dreamfree.models.compile import compile_dit_blocks
 from dreamfree.models.inference_optimization import fuse_attention_projections
 from dreamfree.models.wan22.action_dit import ActionDiT

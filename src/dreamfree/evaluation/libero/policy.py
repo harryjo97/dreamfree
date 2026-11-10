@@ -14,13 +14,14 @@ import torch
 from PIL import Image
 
 import dreamfree.evaluation.libero._eval_common as eval_common
-import dreamfree.evaluation.robotwin.policy as robotwin_dreamfree
 import dreamfree.models.policy_loading as dreamfree_deploy
+from dreamfree.evaluation import checkpoints
+from dreamfree.evaluation.runtime import PolicyRuntime
 
 logger = logging.getLogger(__name__)
-DREAMFREE_STAGE2_CHECKPOINT_TYPE = robotwin_dreamfree.DREAMFREE_STAGE2_CHECKPOINT_TYPE
-DREAMFREE_STAGE2_CHECKPOINT_VERSION = robotwin_dreamfree.DREAMFREE_STAGE2_CHECKPOINT_VERSION
-DREAMFREE_STAGE2_REQUIRED_FILES = robotwin_dreamfree.DREAMFREE_STAGE2_REQUIRED_FILES
+DREAMFREE_STAGE2_CHECKPOINT_TYPE = checkpoints.DREAMFREE_STAGE2_CHECKPOINT_TYPE
+DREAMFREE_STAGE2_CHECKPOINT_VERSION = checkpoints.DREAMFREE_STAGE2_CHECKPOINT_VERSION
+DREAMFREE_STAGE2_REQUIRED_FILES = checkpoints.DREAMFREE_STAGE2_REQUIRED_FILES
 LIBERO_EVAL_COMPATIBLE_DATASET_NAMES = {"libero"}
 
 
@@ -29,11 +30,11 @@ def _is_none_like(value: Any) -> bool:
 
 
 def _require_dict(value: Any, *, label: str) -> dict[str, Any]:
-    return robotwin_dreamfree._require_dict(value, label=label)
+    return checkpoints.require_dict(value, label=label)
 
 
 def _check_equal(mismatches: list[str], name: str, actual: Any, expected: Any) -> None:
-    robotwin_dreamfree._check_equal(mismatches, name, actual, expected)
+    checkpoints.check_equal(mismatches, name, actual, expected)
 
 
 def _check_libero_eval_dataset_name(mismatches: list[str], actual: Any) -> None:
@@ -73,8 +74,10 @@ def _validate_dreamfree_stage2_trainable_scope_for_eval(
 
 
 def _validate_dreamfree_stage2_for_eval(checkpoint_path: Path, metadata: dict[str, Any]) -> None:
-    robotwin_dreamfree._require_existing_files(
-        checkpoint_path, DREAMFREE_STAGE2_REQUIRED_FILES, label="DreamFree Stage 2"
+    from dreamfree.models.release import required_policy_files
+
+    checkpoints.require_existing_files(
+        checkpoint_path, required_policy_files(metadata), label="DreamFree Stage 2"
     )
     mismatches: list[str] = []
     _check_equal(
@@ -95,8 +98,8 @@ def _validate_dreamfree_stage2_for_eval(checkpoint_path: Path, metadata: dict[st
         mismatches.append(
             f"source_stage1_global_step must be non-negative, got {metadata.get('source_stage1_global_step')!r}"
         )
-    family = robotwin_dreamfree._metadata_video_family(metadata, label="DreamFree Stage 2")
-    expected_hidden_dim = robotwin_dreamfree._expected_hidden_dim_for_family(family)
+    family = checkpoints.metadata_video_family(metadata, label="DreamFree Stage 2")
+    expected_hidden_dim = checkpoints.expected_hidden_dim_for_family(family)
     dataset = _require_dict(metadata.get("dataset"), label="DreamFree Stage 2 metadata.dataset")
     student = _require_dict(metadata.get("student"), label="DreamFree Stage 2 metadata.student")
     readout = _require_dict(metadata.get("readout"), label="DreamFree Stage 2 metadata.readout")
@@ -115,9 +118,7 @@ def _validate_dreamfree_stage2_for_eval(checkpoint_path: Path, metadata: dict[st
     _check_equal(mismatches, "dataset.video_size", dataset.get("video_size"), [224, 448])
     _check_equal(mismatches, "dataset.action_dim", int(dataset.get("action_dim", -1)), 7)
     _check_equal(mismatches, "dataset.proprio_dim", int(dataset.get("proprio_dim", -1)), 8)
-    _check_equal(
-        mismatches, "dataset.concat_multi_camera", dataset.get("concat_multi_camera"), "horizontal"
-    )
+    _check_equal(mismatches, "dataset.camera_layout", dataset.get("camera_layout"), "horizontal")
     _check_equal(mismatches, "student.train_mode", student.get("train_mode"), "frozen")
     _check_equal(mismatches, "student.hook_point", student.get("hook_point"), "post_block")
     _check_equal(
@@ -306,13 +307,13 @@ def _extract_libero_state(obs: dict[str, Any]) -> np.ndarray:
     ).astype(np.float32)
 
 
-class LiberoPolicy(robotwin_dreamfree.RobotWinPolicy):
+class LiberoPolicy(PolicyRuntime):
     def __init__(
         self,
         *,
         input_h: int,
         input_w: int,
-        concat_multi_camera: str,
+        camera_layout: str,
         binarize_gripper: bool,
         action_data_source: str,
         image_preprocess_source: str,
@@ -323,7 +324,7 @@ class LiberoPolicy(robotwin_dreamfree.RobotWinPolicy):
         super().__init__(**kwargs)
         self.input_h = int(input_h)
         self.input_w = int(input_w)
-        self.concat_multi_camera = str(concat_multi_camera)
+        self.camera_layout = str(camera_layout)
         self.binarize_gripper = bool(binarize_gripper)
         self.action_data_source = eval_common._normalize_action_data_source(action_data_source)
         self.image_preprocess_source = eval_common._normalize_image_preprocess_source(
@@ -374,12 +375,12 @@ class LiberoPolicy(robotwin_dreamfree.RobotWinPolicy):
             (wrist_h, wrist_w) = _meta_to_hw(image_meta[1], camera_idx=1)
             primary = _center_crop_resize(imgs["image"], width=primary_w, height=primary_h)
             wrist = _center_crop_resize(imgs["wrist_image"], width=wrist_w, height=wrist_h)
-            if self.concat_multi_camera == "horizontal":
+            if self.camera_layout == "horizontal":
                 rgb = np.concatenate([primary, wrist], axis=1)
-            elif self.concat_multi_camera == "vertical":
+            elif self.camera_layout == "vertical":
                 rgb = np.concatenate([primary, wrist], axis=0)
             else:
-                raise ValueError(f"Invalid LIBERO concat_multi_camera: {self.concat_multi_camera}")
+                raise ValueError(f"Invalid LIBERO camera_layout: {self.camera_layout}")
         else:
             raise ValueError(
                 f"LIBERO DreamFree eval supports 1 or 2 output cameras, got {num_cameras}."
@@ -387,7 +388,7 @@ class LiberoPolicy(robotwin_dreamfree.RobotWinPolicy):
         (actual_h, actual_w) = (int(rgb.shape[0]), int(rgb.shape[1]))
         if (actual_h, actual_w) != (self.input_h, self.input_w):
             raise ValueError(
-                f"LIBERO DreamFree input image size mismatch after camera resize + concat: got (H,W)=({actual_h},{actual_w}), expected ({self.input_h},{self.input_w}); shape_meta.images={[meta['shape'] for meta in image_meta]}, concat_multi_camera={self.concat_multi_camera}."
+                f"LIBERO DreamFree input image size mismatch after camera resize + concat: got (H,W)=({actual_h},{actual_w}), expected ({self.input_h},{self.input_w}); shape_meta.images={[meta['shape'] for meta in image_meta]}, camera_layout={self.camera_layout}."
             )
         image_tensor = (
             torch.from_numpy(rgb)

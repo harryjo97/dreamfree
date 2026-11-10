@@ -55,3 +55,26 @@ class IssuedActionHistoryBuffer:
 
     def clear(self) -> None:
         self._commands.clear()
+
+
+def extract_supplied_action_history(observation, *, horizon, action_dim):
+    """Require the execution boundary's ordered raw commands, including empty history."""
+    value = observation.get(ISSUED_ACTION_HISTORY_KEY)
+    padding = observation.get(ISSUED_ACTION_HISTORY_IS_PAD_KEY)
+    if value is None or padding is None:
+        raise ValueError(
+            "Action-history deployment requires execution-owned history and padding fields."
+        )
+    history = np.asarray(value, dtype=np.float32)
+    is_pad = np.asarray(padding)
+    if history.shape != (horizon, action_dim) or is_pad.shape != (horizon,):
+        raise ValueError(
+            f"Supplied action history must have shape [{horizon},{action_dim}] and [{horizon}]."
+        )
+    if is_pad.dtype != np.bool_:
+        raise ValueError("Supplied action-history padding must be boolean.")
+    if not np.isfinite(history).all():
+        raise ValueError("Supplied action history contains nonfinite values.")
+    if np.any(history[is_pad] != 0) or np.any(is_pad[1:] & ~is_pad[:-1]):
+        raise ValueError("Supplied action-history padding must be contiguous left zeros.")
+    return history.copy(), is_pad.copy()

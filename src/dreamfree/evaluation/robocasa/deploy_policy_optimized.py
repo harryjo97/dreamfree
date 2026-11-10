@@ -16,13 +16,13 @@ from dreamfree.evaluation.robocasa.inference_options import FEATURES
 from dreamfree.evaluation.robocasa.robocasa_utils import ENV_TO_DREAMFREE_IMAGE_KEYS
 from dreamfree.models.action_cuda_graph import ActionEulerGraph
 from dreamfree.models.compile import compile_dit_blocks
+from dreamfree.models.encoder_cuda_graph import EncoderGraph
 from dreamfree.models.first_frame_vae import encode_first_frame
 from dreamfree.models.inference_optimization import (
     fuse_attention_projections,
     fused_sdpa_only,
     merge_active_lora_for_inference,
 )
-from dreamfree.models.stage1_cuda_graph import Stage1Graph
 
 COMPILE_MODE = "max-autotune-no-cudagraphs"
 COMPILE_MODE_5B = "default"
@@ -283,7 +283,7 @@ class OptimizedRoboCasaInferenceMixin:
     def _extract_student_tokens(
         self, *, first_frame_latents, i2v_condition_latents=None, context, context_mask
     ):
-        if not self.stage1_cuda_graph_enabled:
+        if not self.encoder_cuda_graph_enabled:
             return super()._extract_student_tokens(
                 first_frame_latents=first_frame_latents,
                 i2v_condition_latents=i2v_condition_latents,
@@ -302,15 +302,15 @@ class OptimizedRoboCasaInferenceMixin:
             if i2v_condition_latents is None:
                 raise ValueError("14B Stage 1 CUDA graph requires I2V conditioning.")
             condition = i2v_condition_latents[:, :, :1]
-        if self._stage1_cuda_graph is None:
-            if not getattr(self, "_stage1_graph_capture_allowed", False):
+        if self._encoder_cuda_graph is None:
+            if not getattr(self, "_encoder_graph_capture_allowed", False):
                 raise RuntimeError("Stage 1 CUDA graph was not captured during policy warmup.")
-            if any(not value.is_inference() for value in self._stage1_graph_freqs):
+            if any(not value.is_inference() for value in self._encoder_graph_freqs):
                 raise RuntimeError("Stage 1 rotary tensors must be created in inference mode.")
 
             def run(latents, image_condition, prompt, mask):
                 old_freqs = self.video_core.dit.freqs
-                self.video_core.dit.freqs = self._stage1_graph_freqs
+                self.video_core.dit.freqs = self._encoder_graph_freqs
                 try:
                     return super(OptimizedRoboCasaInferenceMixin, self)._extract_student_tokens(
                         first_frame_latents=latents,
@@ -321,10 +321,12 @@ class OptimizedRoboCasaInferenceMixin:
                 finally:
                     self.video_core.dit.freqs = old_freqs
 
-            self._stage1_cuda_graph = Stage1Graph(
+            self._encoder_cuda_graph = EncoderGraph(
                 run, first_frame_latents, condition, context, context_mask
             )
-        return self._stage1_cuda_graph.replay(first_frame_latents, condition, context, context_mask)
+        return self._encoder_cuda_graph.replay(
+            first_frame_latents, condition, context, context_mask
+        )
 
     def initialize_optimized_inference(self):
         if getattr(self, "_optimization_initialized", False):
@@ -383,7 +385,7 @@ class OptimizedRoboCasaInferenceMixin:
                 self, name + "_enabled", self.optimization_contract["features"][name]["enabled"]
             )
         self._action_cuda_graphs = {}
-        self._stage1_cuda_graph = None
+        self._encoder_cuda_graph = None
         self._action_cuda_graph_signature = self._action_graph_signature()
         self._visual_optimization_signature = self._visual_signature()
         self._visual_device = torch.device(
@@ -392,7 +394,7 @@ class OptimizedRoboCasaInferenceMixin:
         )
         with torch.inference_mode():
             self._action_cuda_graph_freqs = self.action_model.freqs.to(self.device)
-            self._stage1_graph_freqs = tuple(
+            self._encoder_graph_freqs = tuple(
                 value.to(self.device) for value in self.video_core.dit.freqs
             )
         self.optimization_contract.update(
@@ -406,7 +408,7 @@ class OptimizedRoboCasaInferenceMixin:
             compile_auxiliary="none",
             action_cross_kv_cache=True,
             action_cuda_graph_capture_count=0,
-            stage1_cuda_graph_capture_count=0,
+            encoder_cuda_graph_capture_count=0,
         )
         if is_5b:
             self.optimization_contract.update(
@@ -447,7 +449,7 @@ class OptimizedRoboCasaInferenceMixin:
         counts = (horizon, horizon // 2, 0) if horizon else (0,)
         started = time.perf_counter()
         self._warming_up = self._action_graph_capture_allowed = (
-            self._stage1_graph_capture_allowed
+            self._encoder_graph_capture_allowed
         ) = True
         try:
             with torch.random.fork_rng(devices=[self._visual_device.index]), torch.inference_mode():
@@ -483,7 +485,7 @@ class OptimizedRoboCasaInferenceMixin:
                 torch.cuda.synchronize(self.device)
         finally:
             self._warming_up = self._action_graph_capture_allowed = (
-                self._stage1_graph_capture_allowed
+                self._encoder_graph_capture_allowed
             ) = False
             self._prompt_context_cache = old_cache
             self._timing_rollout.clear()
@@ -501,7 +503,7 @@ class OptimizedRoboCasaInferenceMixin:
             raise RuntimeError(
                 f"RoboCasa action graph warmup did not capture required variants: {expected}."
             )
-        if self.stage1_cuda_graph_enabled and self._stage1_cuda_graph is None:
+        if self.encoder_cuda_graph_enabled and self._encoder_cuda_graph is None:
             raise RuntimeError("RoboCasa Stage 1 graph warmup did not capture feature extraction.")
         elapsed = time.perf_counter() - started
         self.optimization_contract.update(
@@ -510,7 +512,7 @@ class OptimizedRoboCasaInferenceMixin:
             warmup_scope="full_action_chunk",
             warmup_history_padding=list(counts),
             action_cuda_graph_capture_count=len(self._action_cuda_graphs),
-            stage1_cuda_graph_capture_count=int(self._stage1_cuda_graph is not None),
+            encoder_cuda_graph_capture_count=int(self._encoder_cuda_graph is not None),
             peak_memory_allocated_bytes=torch.cuda.max_memory_allocated(self.device),
             peak_memory_reserved_bytes=torch.cuda.max_memory_reserved(self.device),
         )

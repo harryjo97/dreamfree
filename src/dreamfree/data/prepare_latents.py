@@ -23,7 +23,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.encode_batch_size <= 0 or args.limit_episodes < 0:
         parser.error("Batch size must be positive and episode limit must be nonnegative.")
-    from dreamfree.data.latent_preparation import PrecomputeConfig, run_precompute
+    from dreamfree.data.latent_config import PrecomputeConfig
+    from dreamfree.data.latent_preparation import run_precompute
 
     training = load_config(2, args.config, args.set)
     if not training.dataset_dirs:

@@ -66,8 +66,8 @@ def _setup_logging(output_dir: Path) -> Path:
 
 
 def _validate_eval_cfg(cfg: DictConfig) -> None:
-    if cfg.ckpt is None:
-        raise ValueError("`ckpt` must not be None.")
+    if cfg.checkpoint_path is None:
+        raise ValueError("`checkpoint_path` must not be None.")
     if cfg.EVALUATION.task_name is None:
         raise ValueError("`EVALUATION.task_name` must not be None.")
     if int(cfg.EVALUATION.get("episode_start_idx", 0)) < 0:
@@ -91,7 +91,7 @@ def _build_policy(
     options = dict(cfg.EVALUATION)
     options.setdefault("seed", cfg.get("seed", 42))
     options.update(
-        ckpt_setting=str(ckpt_path),
+        checkpoint_path=str(ckpt_path),
         dataset_stats_path=str(dataset_stats_path),
         mixed_precision=cfg.get("mixed_precision", "bf16"),
         load_text_encoder=cfg.model.get("load_text_encoder", True),
@@ -307,7 +307,7 @@ def main(cfg: DictConfig):
     env["CUDA_VISIBLE_DEVICES"] = robocasa_eval._resolve_cuda_visible_devices(
         gpu_id=cfg.gpu_id, inherited_env=env
     )
-    ckpt_path = robocasa_eval._resolve_path(str(cfg.ckpt), base=PROJECT_ROOT)
+    ckpt_path = robocasa_eval._resolve_path(str(cfg.checkpoint_path), base=PROJECT_ROOT)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
     checkpoint_metadata = robocasa_eval._load_checkpoint_metadata(ckpt_path)
@@ -369,7 +369,7 @@ def main(cfg: DictConfig):
     results = run_task(policy=policy, cfg=cfg, output_dir=task_output_dir)
     results.update(
         {
-            "ckpt": str(ckpt_path),
+            "checkpoint_path": str(ckpt_path),
             "checkpoint_type": checkpoint_metadata.get("checkpoint_type")
             if checkpoint_metadata
             else None,

@@ -15,9 +15,7 @@ import torch
 from safetensors import safe_open
 from torch.utils.data import Dataset
 
-from dreamfree.data.lerobot.robocasa_visual_cache_manifest import (
-    validate_robocasa_visual_cache_manifest_entry,
-)
+from dreamfree.data import yam
 from dreamfree.data.text_cache import DEFAULT_PROMPT, validate_text_cache
 from dreamfree.models.wan22.i2v_condition import (
     WAN22_A14B_I2V_CONDITION_LATENTS_KEY,
@@ -288,7 +286,7 @@ def validate_stage2_latent_cache_header(
         raise ValueError(
             f"{stage_label} cached-latent training requires regenerated full-coverage cache metadata. Missing `cache_version` in {path}."
         )
-    if int(cache_version) != STAGE2_LATENT_CACHE_VERSION:
+    if int(cache_version) not in yam.cache_versions(expected, meta):
         raise ValueError(
             f"{stage_label} cached-latent training requires cache_version={STAGE2_LATENT_CACHE_VERSION}, got {cache_version!r} in {path}."
         )
@@ -367,19 +365,6 @@ def validate_stage2_latent_cache_header(
             expected=int(expected["action_horizon"]),
             require=require_action_horizon,
         )
-    if expected.get("visual_preprocess_id") is not None:
-        actual_visual_id = meta.get("visual_preprocess_id")
-        if actual_visual_id is None:
-            try:
-                validate_robocasa_visual_cache_manifest_entry(
-                    path=path, metadata=dict(meta), tensor_shapes=tensor_shapes, expected=expected
-                )
-            except ValueError as exc:
-                mismatches.append(str(exc))
-        elif str(actual_visual_id) != str(expected["visual_preprocess_id"]):
-            mismatches.append(
-                f"visual_preprocess_id: actual={actual_visual_id!r} expected={expected['visual_preprocess_id']!r}"
-            )
     if mismatches:
         raise ValueError(
             f"{stage_label} latent cache model/VAE contract mismatch in {path}: "

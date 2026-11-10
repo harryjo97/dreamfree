@@ -13,8 +13,14 @@ from accelerate.utils import DataLoaderConfiguration
 from torch.utils.data import Dataset
 
 from dreamfree.data.distillation import _build_stage1_dataset, _resolve_stage1_task_roots
+from dreamfree.data.prepare_text import ensure_training_text_cache
 from dreamfree.data.sampling import build_dataloader
 from dreamfree.models.distillation import DistillationModel, _compile_stage1_dit_blocks
+from dreamfree.models.full_student import (
+    build_full_stage1_backbone,
+    build_full_stage1_optimizer,
+    build_full_stage1_scheduler,
+)
 from dreamfree.models.wan22.future_state import FirstFrameToTeacherStateProjector
 from dreamfree.models.wan22.stage0_loader import load_stage0_merged_backbone
 from dreamfree.training.accumulation import build_fixed_step_gradient_accumulation_plugin
@@ -33,6 +39,7 @@ from dreamfree.training.runtime import (
     collect_trainable_params,
     optimizer_parameters,
 )
+from dreamfree.training.stage1 import distributed
 from dreamfree.training.stage1.checkpoint import (
     _load_stage1_model_weights,
     _load_stage1_optimizer_state_if_requested,
@@ -54,7 +61,8 @@ def run_stage1_training(cfg: Stage1Config) -> None:
     """Run dataset preparation, model setup, training, eval, and checkpointing.
 
     Args:
-        cfg: Complete Stage 1 configuration, usually produced by `parse_args`.
+        cfg: Parsed Stage 1 configuration produced by dreamfree.config.load_config;
+            source expectations and the dataset-based budget are resolved here.
 
     Raises:
         ValueError: If config, dataset, resume checkpoint, or tensor layouts are
@@ -67,7 +75,7 @@ def run_stage1_training(cfg: Stage1Config) -> None:
     mixed_precision = _normalize_mixed_precision(cfg.mixed_precision)
     accelerator = Accelerator(
         gradient_accumulation_plugin=build_fixed_step_gradient_accumulation_plugin(
-            int(cfg.gradient_accumulation_steps)
+            int(cfg.gradient_accumulation_steps), sync_each_batch=cfg.gradient_sync_each_batch
         ),
         mixed_precision=mixed_precision,
         step_scheduler_with_optimizer=False,
@@ -82,6 +90,8 @@ def run_stage1_training(cfg: Stage1Config) -> None:
         accelerator.process_index,
         mixed_precision,
     )
+    if not cfg.prepare_only:
+        ensure_training_text_cache(cfg, accelerator)
     torch.manual_seed(int(cfg.seed) + accelerator.process_index)
     np.random.seed(int(cfg.seed) + accelerator.process_index)
     random.seed(int(cfg.seed) + accelerator.process_index)
@@ -100,6 +110,7 @@ def run_stage1_training(cfg: Stage1Config) -> None:
         if accelerator.is_main_process:
             _json_dump(Path(cfg.output_dir) / "stage1_config.json", asdict(cfg))
         logger.info("prepare_only=true; exiting after dataset preparation.")
+        accelerator.end_training()
         return
     train_dataset = _build_stage1_dataset(task_roots, cfg, split="train")
     val_dataset: Dataset | None = None
@@ -141,7 +152,15 @@ def run_stage1_training(cfg: Stage1Config) -> None:
     resume_payload = _read_resume_metadata(cfg)
     global_step = int(resume_payload[1]["global_step"]) if resume_payload is not None else 0
     model_dtype = _mixed_precision_to_dtype(mixed_precision)
-    backbone = load_stage0_merged_backbone(cfg, device=_resolve_train_device(), dtype=model_dtype)
+    teacher_core = None
+    if cfg.student_train_mode == "full":
+        backbone, teacher_core = build_full_stage1_backbone(
+            cfg, device=_resolve_train_device(), dtype=model_dtype
+        )
+    else:
+        backbone = load_stage0_merged_backbone(
+            cfg, device=_resolve_train_device(), dtype=model_dtype
+        )
     projector = FirstFrameToTeacherStateProjector(
         d_student=int(cfg.video_hidden_dim),
         d_teacher=int(cfg.video_hidden_dim),
@@ -151,34 +170,57 @@ def run_stage1_training(cfg: Stage1Config) -> None:
         mlp_ratio=float(cfg.projector_mlp_ratio),
         max_frames=(int(cfg.clip_frames) - 1) // 4 + 1,
     ).to(device=backbone.core.device, dtype=backbone.core.torch_dtype)
-    wrapper = DistillationModel(backbone, projector, cfg)
-    if resume_payload is not None:
+    wrapper = DistillationModel(backbone, projector, cfg, teacher_core=teacher_core)
+    if resume_payload is not None and not distributed.is_fsdp2(accelerator):
         _load_stage1_model_weights(wrapper, resume_payload[0])
         logger.info(
             "Loaded Stage 1 model weights from %s at global_step=%d", resume_payload[0], global_step
         )
     if bool(cfg.compile_dit):
         _compile_stage1_dit_blocks(wrapper)
+    distributed.configure(accelerator, wrapper)
     trainable_params = collect_trainable_params(wrapper)
-    optimizer = torch.optim.AdamW(
-        trainable_params,
-        lr=float(cfg.learning_rate),
-        weight_decay=float(cfg.weight_decay),
-        betas=(0.9, 0.95),
-    )
-    scheduler = build_scheduler(optimizer, cfg)
+    if cfg.student_train_mode == "full":
+        optimizer = build_full_stage1_optimizer(wrapper, cfg)
+        scheduler = build_full_stage1_scheduler(optimizer, cfg)
+    else:
+        optimizer = torch.optim.AdamW(
+            trainable_params,
+            lr=float(cfg.learning_rate),
+            weight_decay=float(cfg.weight_decay),
+            betas=(0.9, 0.95),
+        )
+        scheduler = build_scheduler(optimizer, cfg)
     (wrapper, optimizer, train_loader, scheduler) = accelerator.prepare(
         wrapper, optimizer, train_loader, scheduler
     )
+    distributed.finalize(accelerator, wrapper, optimizer)
     trainable_params = optimizer_parameters(optimizer)
     if val_loader is not None:
         val_loader = accelerator.prepare(val_loader)
-    _load_stage1_optimizer_state_if_requested(optimizer=optimizer, scheduler=scheduler, cfg=cfg)
+    if resume_payload is not None:
+        expected_format = "fsdp2" if distributed.is_fsdp2(accelerator) else "torch"
+        if (
+            cfg.resume_optimizer_state
+            and resume_payload[1].get("optimizer_checkpoint_format", "torch") != expected_format
+        ):
+            raise ValueError("Resume optimizer backend differs from the saved Stage 1 checkpoint.")
+        if distributed.is_fsdp2(accelerator):
+            distributed.load_model(accelerator, wrapper, resume_payload[0])
+            if cfg.resume_optimizer_state:
+                distributed.optimizer_state(
+                    wrapper, optimizer, scheduler, resume_payload[0] / "fsdp2_state", load=True
+                )
+        else:
+            _load_stage1_optimizer_state_if_requested(
+                optimizer=optimizer, scheduler=scheduler, cfg=cfg
+            )
     accelerator.unwrap_model(wrapper).set_stage1_train_mode()
     optimizer.zero_grad(set_to_none=True)
     wandb_run = _init_wandb(accelerator, cfg)
     if int(cfg.max_steps) <= 0:
         logger.info("max_steps<=0; built datasets/model and exiting without training.")
+        accelerator.end_training()
         return
     train_iter = iter(train_loader)
     val_iter = iter(val_loader) if val_loader is not None else None
@@ -198,6 +240,7 @@ def run_stage1_training(cfg: Stage1Config) -> None:
             sample = next(train_iter)
         batch_next_seconds = time.perf_counter() - batch_next_start
         with accelerator.accumulate(wrapper):
+            distributed.accumulation_policy(accelerator, wrapper, cfg)
             forward_start = time.perf_counter()
             (loss, loss_dict) = wrapper(sample)
             forward_seconds = time.perf_counter() - forward_start
@@ -332,3 +375,4 @@ def run_stage1_training(cfg: Stage1Config) -> None:
     if wandb_run is not None:
         wandb_run.finish()
     logger.info("Stage 1 training finished at step=%d", global_step)
+    accelerator.end_training()

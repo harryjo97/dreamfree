@@ -19,6 +19,7 @@ import torchvision.transforms.functional as TVF
 from safetensors import safe_open
 from torch.utils.data import Dataset
 
+from dreamfree.data import yam
 from dreamfree.data.contracts import (
     _normalize_latent_frame0_mode,
     _stage0_latent_cache_expected_contract,
@@ -30,6 +31,7 @@ from dreamfree.data.lerobot.cached_latent_dataset import (
     validate_stage2_latent_cache_header_file,
 )
 from dreamfree.data.lerobot.lerobot.datasets.video_utils import decode_video_frames
+from dreamfree.data.robocasa_visual import ROBOCASA_RAW_CAMERA_SIZE, compose_robocasa_dreamzero
 from dreamfree.data.text_cache import DEFAULT_PROMPT
 from dreamfree.data.text_cache import load_text_context as _load_stage0_text_cache
 from dreamfree.models.adaptation import (
@@ -257,7 +259,7 @@ def resolve_episode_task_candidates(
     return ()
 
 
-def _parse_stage0_latent_cache_dirs(value: Any) -> list[str]:
+def _parse_video_latent_cache_dirs(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, (str, Path)):
@@ -273,11 +275,11 @@ def _parse_stage0_latent_cache_dirs(value: Any) -> list[str]:
                 dirs.append(text)
         return dirs
     raise TypeError(
-        f"stage0_latent_cache_dir must be a comma-separated string or sequence, got {type(value)}."
+        f"video_latent_cache_dir must be a comma-separated string or sequence, got {type(value)}."
     )
 
 
-def _format_stage0_latent_cache_dirs(cache_dirs: Sequence[Path]) -> str:
+def _format_video_latent_cache_dirs(cache_dirs: Sequence[Path]) -> str:
     return ",".join((str(Path(path).expanduser()) for path in cache_dirs))
 
 
@@ -375,9 +377,9 @@ def _stage0_cache_dir_can_use_flat_episodes(cache_dir: Path, root: Path) -> bool
 
 
 def resolve_stage0_latent_cache_dirs(cfg: Stage0Config) -> list[Path]:
-    raw_dirs = _parse_stage0_latent_cache_dirs(getattr(cfg, "stage0_latent_cache_dir", None))
+    raw_dirs = _parse_video_latent_cache_dirs(getattr(cfg, "video_latent_cache_dir", None))
     if not raw_dirs:
-        raise ValueError("Stage 0 use_cached_latents=true requires stage0_latent_cache_dir.")
+        raise ValueError("Stage 0 use_cached_latents=true requires video_latent_cache_dir.")
     return [Path(raw).expanduser() for raw in raw_dirs]
 
 
@@ -385,16 +387,14 @@ def _validate_stage0_latent_cache_config(cfg: Stage0Config) -> None:
     if not bool(getattr(cfg, "use_cached_latents", False)):
         cache_dirs = [
             Path(path).expanduser()
-            for path in _parse_stage0_latent_cache_dirs(
-                getattr(cfg, "stage0_latent_cache_dir", None)
-            )
+            for path in _parse_video_latent_cache_dirs(getattr(cfg, "video_latent_cache_dir", None))
         ]
-        cfg.stage0_latent_cache_dir = (
-            _format_stage0_latent_cache_dirs(cache_dirs) if cache_dirs else None
+        cfg.video_latent_cache_dir = (
+            _format_video_latent_cache_dirs(cache_dirs) if cache_dirs else None
         )
         return
     latent_cache_dirs = resolve_stage0_latent_cache_dirs(cfg)
-    cfg.stage0_latent_cache_dir = _format_stage0_latent_cache_dirs(latent_cache_dirs)
+    cfg.video_latent_cache_dir = _format_video_latent_cache_dirs(latent_cache_dirs)
     missing_dirs = [str(path) for path in latent_cache_dirs if not path.exists()]
     if missing_dirs:
         raise FileNotFoundError(
@@ -417,7 +417,7 @@ def _validate_stage0_latent_cache_config(cfg: Stage0Config) -> None:
 
 
 def _stage0_robocasa_layout_spec(cfg: Any) -> dict[str, int | str]:
-    concat_layout = str(getattr(cfg, "concat_multi_camera", "")).strip().lower()
+    concat_layout = str(getattr(cfg, "camera_layout", "")).strip().lower()
     if concat_layout == ROBOCASA_DREAMZERO_352_CONCAT_MULTI_CAMERA:
         return {
             "concat_layout": ROBOCASA_DREAMZERO_352_CONCAT_MULTI_CAMERA,
@@ -438,16 +438,11 @@ def _stage0_robocasa_layout_spec(cfg: Any) -> dict[str, int | str]:
 
 
 def _is_stage0_robocasa_layout(cfg: Any) -> bool:
-    return (
-        str(getattr(cfg, "concat_multi_camera", "")).strip().lower() in ROBOCASA_DREAMZERO_LAYOUTS
-    )
+    return str(getattr(cfg, "camera_layout", "")).strip().lower() in ROBOCASA_DREAMZERO_LAYOUTS
 
 
 def _is_stage0_droid_layout(cfg: Any) -> bool:
-    return (
-        str(getattr(cfg, "concat_multi_camera", "")).strip().lower()
-        == DROID_GRID_CONCAT_MULTI_CAMERA
-    )
+    return str(getattr(cfg, "camera_layout", "")).strip().lower() == DROID_GRID_CONCAT_MULTI_CAMERA
 
 
 def _validate_stage0_robocasa_layout_config(
@@ -571,7 +566,7 @@ def _validate_stage0_latent_cache_file_for_cfg(
     path: Path, cfg: Stage0Config, *, allowed_robocasa_dataset_kinds: Sequence[str] = ("robocasa",)
 ) -> None:
     expected = _stage0_latent_cache_expected_contract(cfg)
-    concat_mode = str(getattr(cfg, "concat_multi_camera", "")).strip().lower()
+    concat_mode = str(getattr(cfg, "camera_layout", "")).strip().lower()
     if concat_mode == DROID_GRID_CONCAT_MULTI_CAMERA:
         _validate_droid_dreamzero_latent_cache_file(path, expected=expected, stage_label="Stage 0")
         return
@@ -1159,6 +1154,19 @@ class VideoDataset(Dataset):
         Returns:
             Episodes belonging to the requested split.
         """
+        if self.cfg.dataset_name in yam.DATASET_NAMES:
+            selected = []
+            for episode in episodes:
+                entry = yam.load_selection(episode.root, self.cfg.dataset_name)["episodes"].get(
+                    str(episode.episode_index)
+                )
+                if entry is None or int(entry["length"]) != episode.length:
+                    raise ValueError(
+                        f"ABC episode metadata differs from its frozen selection: {episode.episode_index}"
+                    )
+                if entry["split"] == split:
+                    selected.append(episode)
+            return selected
         val_fraction = float(self.cfg.val_fraction)
         if val_fraction <= 0.0:
             if split == "val":
@@ -1368,10 +1376,12 @@ class VideoDataset(Dataset):
         if missing:
             raise KeyError(f"Missing configured Stage 0 camera tensors: {missing}")
         concat_mode = (
-            str(getattr(self.cfg, "concat_multi_camera", ROBOTWIN_CONCAT_MULTI_CAMERA))
-            .strip()
-            .lower()
+            str(getattr(self.cfg, "camera_layout", ROBOTWIN_CONCAT_MULTI_CAMERA)).strip().lower()
         )
+        if concat_mode in yam.LAYOUT_DATASETS:
+            if tuple(camera_keys) != yam.CAMERA_KEYS:
+                raise ValueError("ABC cameras must be ordered top, left, right.")
+            return yam.pack_views([cameras[key] for key in camera_keys], yam.ABC_NAME)
         if len(camera_keys) == 3 and concat_mode == ROBOTWIN_CONCAT_MULTI_CAMERA:
             (top_key, left_key, right_key) = camera_keys
             head = self._resize_video(cameras[top_key], (256, 320))
@@ -1386,17 +1396,16 @@ class VideoDataset(Dataset):
                 )
             spec = _stage0_robocasa_layout_spec(self.cfg)
             expected_size = (int(spec["height"]), int(spec["width"]))
-            tile = int(spec["tile"])
             if (self.height, self.width) != expected_size:
                 raise ValueError(
                     f"Robocasa DreamZero layout requires {expected_size[0]}x{expected_size[1]}, got {self.height}x{self.width}."
                 )
-            (left_key, right_key, wrist_key) = ROBOCASA_CAMERA_KEYS
-            wrist = self._resize_video(cameras[wrist_key], (tile, self.width))
-            left = self._resize_video(cameras[left_key], (tile, tile))
-            right = self._resize_video(cameras[right_key], (tile, tile))
-            bottom = torch.cat([left, right], dim=-1)
-            video = torch.cat([wrist, bottom], dim=-2)
+            video = compose_robocasa_dreamzero(
+                torch.stack([cameras[key] for key in ROBOCASA_CAMERA_KEYS]),
+                output_size=expected_size,
+                expected_raw_size=ROBOCASA_RAW_CAMERA_SIZE,
+                normalize=False,
+            )
         elif concat_mode == DROID_GRID_CONCAT_MULTI_CAMERA:
             video = self._compose_droid_grid(cameras, camera_keys)
         elif concat_mode == HORIZONTAL_CONCAT_MULTI_CAMERA:
@@ -1423,7 +1432,7 @@ class VideoDataset(Dataset):
             video = torch.cat(resized, dim=-2)
         else:
             raise ValueError(
-                f"Unsupported concat_multi_camera={concat_mode!r} for {len(camera_keys)} configured cameras. Expected robotwin, robocasa_dreamzero_352, droid_grid, or horizontal/vertical."
+                f"Unsupported camera_layout={concat_mode!r} for {len(camera_keys)} configured cameras. Expected robotwin, robocasa_dreamzero_352, droid_grid, or horizontal/vertical."
             )
         if tuple(video.shape[-2:]) != (self.height, self.width):
             video = self._resize_video(video, (self.height, self.width))
@@ -1516,7 +1525,7 @@ class CachedStage0LatentDataset(Dataset):
     ):
         super().__init__()
         self.cache_dirs = [
-            Path(path).expanduser().resolve() for path in _parse_stage0_latent_cache_dirs(cache_dir)
+            Path(path).expanduser().resolve() for path in _parse_video_latent_cache_dirs(cache_dir)
         ]
         if not self.cache_dirs:
             raise ValueError(
@@ -1597,12 +1606,16 @@ class CachedStage0LatentDataset(Dataset):
                     f"{root_name}/episode_{int(episode.episode_index):06d} candidates={candidate_dirs}"
                 )
                 continue
+            if self.source_dataset.cfg.dataset_name in yam.DATASET_NAMES:
+                yam.validate_cache(path, episode.root, self.source_dataset.cfg.dataset_name)
             if first_existing is None:
                 first_existing = path
             (meta, latent_shape, _) = _stage0_cached_or_overlay_latent_header(path)
             if _is_droid_cache_meta(meta):
                 _validate_droid_dreamzero_latent_cache_metadata(path, stage_label="Stage 0")
-            elif self.expected_cache_contract.get("visual_preprocess_id") is not None:
+            elif str(self.expected_cache_contract.get("concat_layout", "")).startswith(
+                "robocasa_dreamzero_"
+            ):
                 validate_stage2_latent_cache_header_file(
                     path, expected=self.expected_cache_contract, stage_label="Stage 0"
                 )

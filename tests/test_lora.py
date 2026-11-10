@@ -243,9 +243,9 @@ def test_frozen_student_loader_applies_requested_lora_merge(monkeypatch, tmp_pat
         source=source,
         device="cpu",
         dtype=torch.float32,
-        merge_student_lora_for_inference=merge,
+        merge_student_lora=merge,
     )
     torch.testing.assert_close(result.core.dit(inputs), expected)
-    assert result.student_lora_merged_for_inference is merge
+    assert result.student_lora_merged is merge
     assert has_lora_adapters(result.core.dit) is not merge
     assert not any(parameter.requires_grad for parameter in result.core.parameters())

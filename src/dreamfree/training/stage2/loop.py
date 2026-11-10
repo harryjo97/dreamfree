@@ -12,11 +12,9 @@ import torch
 from accelerate import Accelerator
 from torch.utils.data import Dataset
 
-from dreamfree.data.stage2 import (
-    _build_stage2_dataloader,
-    _build_stage2_dataset,
-    _maybe_cuda_synchronize,
-)
+from dreamfree.data.action_batch import _maybe_cuda_synchronize
+from dreamfree.data.prepare_text import ensure_training_text_cache
+from dreamfree.data.stage2 import _build_stage2_dataloader, _build_stage2_dataset
 from dreamfree.models.action_training import (
     ActionTrainingModel,
     StudentReadoutActionConditioner,
@@ -44,7 +42,9 @@ from dreamfree.training.runtime import (
 from dreamfree.training.stage2.checkpoint import (
     _load_dreamfree_stage2_optimizer_state_if_requested,
     _read_resume_metadata,
+    prepare_release_initialization,
     save_dreamfree_stage2_checkpoint,
+    validate_release_initialization,
 )
 from dreamfree.training.stage2.config import Stage2Config
 from dreamfree.training.stage2.constants import logger
@@ -63,11 +63,14 @@ from dreamfree.utils.logging_config import setup_logging
 def run_dreamfree_stage2_training(
     cfg: Stage2Config, *, explicit_fields: set[str] | None = None
 ) -> None:
+    initialization = prepare_release_initialization(cfg)
     if cfg.action_horizon is None:
         _apply_selected_droid_action_horizon_default(cfg, explicit_fields=explicit_fields)
     _apply_stage1_checkpoint_model_contract(cfg, explicit_fields=explicit_fields)
     validate_dreamfree_stage2_config(cfg)
     source = validate_stage1_student_source(cfg)
+    if initialization is not None:
+        validate_release_initialization(cfg, initialization[1], source=source)
     mixed_precision = _normalize_mixed_precision(cfg.mixed_precision)
     accelerator = Accelerator(
         gradient_accumulation_plugin=build_fixed_step_gradient_accumulation_plugin(
@@ -91,19 +94,16 @@ def run_dreamfree_stage2_training(
         int(cfg.per_device_batch_size),
         int(cfg.num_workers),
     )
+    ensure_training_text_cache(cfg, accelerator)
     torch.manual_seed(int(cfg.seed) + accelerator.process_index)
     np.random.seed(int(cfg.seed) + accelerator.process_index)
     random.seed(int(cfg.seed) + accelerator.process_index)
-    eval_enabled = int(cfg.eval_every) > 0 and float(cfg.val_set_proportion) > 0.0
-    train_val_set_proportion = float(cfg.val_set_proportion) if eval_enabled else 0.0
-    train_dataset = _build_stage2_dataset(
-        cfg, split="train", val_set_proportion=train_val_set_proportion
-    )
+    eval_enabled = int(cfg.eval_every) > 0 and float(cfg.val_fraction) > 0.0
+    train_val_fraction = float(cfg.val_fraction) if eval_enabled else 0.0
+    train_dataset = _build_stage2_dataset(cfg, split="train", val_fraction=train_val_fraction)
     val_dataset: Dataset | None = None
     if eval_enabled:
-        val_dataset = _build_stage2_dataset(
-            cfg, split="val", val_set_proportion=float(cfg.val_set_proportion)
-        )
+        val_dataset = _build_stage2_dataset(cfg, split="val", val_fraction=float(cfg.val_fraction))
     assert_dataset_lengths_consistent(accelerator, train_dataset, "dreamfree_stage2_train_dataset")
     if val_dataset is not None:
         assert_dataset_lengths_consistent(accelerator, val_dataset, "dreamfree_stage2_val_dataset")
@@ -142,7 +142,7 @@ def run_dreamfree_stage2_training(
         source=source,
         device=_resolve_train_device(),
         dtype=model_dtype,
-        merge_student_lora_for_inference=bool(cfg.merge_student_lora_for_inference),
+        merge_student_lora=bool(cfg.merge_student_lora),
     )
     readout = _build_student_readout(cfg, student=student).to(
         device=student.core.device, dtype=student.core.torch_dtype
@@ -169,6 +169,12 @@ def run_dreamfree_stage2_training(
             "Loaded DreamFree Stage 2 model weights from %s at global_step=%d",
             resume_payload[0],
             global_step,
+        )
+    elif initialization is not None:
+        _load_dreamfree_stage2_model_weights(wrapper, initialization[0])
+        logger.info(
+            "Initialized Stage 2 from release %s with a fresh optimizer at step 0",
+            initialization[0],
         )
     wrapper.set_stage2_train_mode()
     _assert_stage2_readout_trainable(wrapper)
@@ -198,6 +204,7 @@ def run_dreamfree_stage2_training(
         logger.info(
             "max_steps<=0; built DreamFree Stage 2 datasets/model and exiting without training."
         )
+        accelerator.end_training()
         return
     train_iter = iter(train_loader)
     start_step = int(global_step)
@@ -375,3 +382,4 @@ def run_dreamfree_stage2_training(
     if wandb_run is not None:
         wandb_run.finish()
     logger.info("DreamFree Stage 2 training finished at step=%d", global_step)
+    accelerator.end_training()

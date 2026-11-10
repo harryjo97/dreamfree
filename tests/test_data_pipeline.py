@@ -15,7 +15,8 @@ from dreamfree.data.distillation import (
     format_stage1_prompt,
     stage1_text_cache_path,
 )
-from dreamfree.data.latent_preparation import EpisodePayload, _save_episode_cache
+from dreamfree.data.latent_data import EpisodePayload
+from dreamfree.data.latent_preparation import _save_episode_cache
 from dreamfree.data.stage1_cache import _stage1_latent_cache_expected_contract
 from dreamfree.data.video import VideoDataset, build_stage0_dataset
 from dreamfree.models.wan22.i2v_condition import WAN22_A14B_I2V_CONDITION_LATENTS_KEY
@@ -98,24 +99,27 @@ def test_live_video_dataset_builds_and_serves_standard_samples(
 @pytest.mark.parametrize("stage", [0, 1])
 @pytest.mark.parametrize("model", ["5b", "14b"])
 def test_cache_writer_and_training_reader_share_contract(tmp_path, monkeypatch, stage, model):
+    cache = tmp_path / "latents"
     cfg = load_config(
         stage,
         ROOT / f"configs/stage{stage}_{model}.yaml",
-        ["val_fraction=0", "height=32", "width=32"],
+        [
+            "val_fraction=0",
+            "height=32",
+            "width=32",
+            "data_mode=cached",
+            f"video_latent_cache_dir={cache}",
+        ],
     )
     root = tmp_path / "dataset"
     write_metadata(root, cfg.camera_keys.split(","))
     write_text_cache(tmp_path / "text", cfg)
     cfg.dataset_dirs = str(root)
     cfg.text_embedding_cache_dir = str(tmp_path / "text")
-    cfg.use_cached_latents = True
-    cache = tmp_path / "latents"
     cache.mkdir()
     if stage == 0:
-        cfg.stage0_latent_cache_dir = str(cache)
         contract = _stage0_latent_cache_expected_contract(cfg)
     else:
-        cfg.stage2_latent_cache_dir = str(cache)
         contract = _stage1_latent_cache_expected_contract(cfg)
     shape = (
         33,
@@ -171,12 +175,11 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
     import pyarrow.parquet as pq
 
     from dreamfree.config import DATA_DEFAULTS
+    from dreamfree.data.action_cache import _stage2_latent_cache_expected_contract
     from dreamfree.data.lerobot.lerobot import lerobot_dataset
-    from dreamfree.data.stage2 import _build_stage2_dataset, _stage2_latent_cache_expected_contract
+    from dreamfree.data.stage2 import _build_stage2_dataset
 
-    cfg = load_config(
-        2, ROOT / "configs/stage2_14b.yaml", [f"dataset={dataset}", "val_set_proportion=0"]
-    )
+    cfg = load_config(2, ROOT / "configs/stage2_14b.yaml", [f"dataset={dataset}", "val_fraction=0"])
     root = tmp_path / "dataset"
     cameras = DATA_DEFAULTS[dataset]["camera_keys"].split(",")
     write_metadata(root, cameras)
@@ -196,9 +199,11 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
         data_path="data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet",
         splits={"train": "0:1"},
     )
+    raw_action_dim = 28 if dataset == "droid" else cfg.action_dim
+    raw_state_dim = 14 if dataset == "droid" else cfg.proprio_dim
     raw = {
-        "action": [[0.5] * cfg.action_dim] * 33,
-        "observation.state": [[0.25] * cfg.proprio_dim] * 33,
+        "action": [[0.5] * raw_action_dim] * 33,
+        "observation.state": [[0.25] * raw_state_dim] * 33,
         "timestamp": [i / 30 for i in range(33)],
         "frame_index": list(range(33)),
         "episode_index": [0] * 33,
@@ -231,7 +236,7 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
         } | {"count": [33]}
 
     (root / "meta/stats.json").write_text(
-        json.dumps({"action": stats(cfg.action_dim), "observation.state": stats(cfg.proprio_dim)})
+        json.dumps({"action": stats(raw_action_dim), "observation.state": stats(raw_state_dim)})
     )
     groups = (
         {"joint_position": (0, 7), "gripper_position": (7, 8)}
@@ -242,8 +247,14 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
         (root / "meta/modality.json").write_text(
             json.dumps(
                 {
-                    group: {key: {"start": a, "end": b} for key, (a, b) in groups.items()}
-                    for group in ["action", "state"]
+                    "action": {
+                        "joint_position": {"start": 14, "end": 21},
+                        "gripper_position": {"start": 12, "end": 13},
+                    },
+                    "state": {
+                        "joint_position": {"start": 7, "end": 14},
+                        "gripper_position": {"start": 6, "end": 7},
+                    },
                 }
             )
         )
@@ -264,7 +275,7 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
             )
     norm_path = tmp_path / "stats.json"
     norm_path.write_text(json.dumps(normalization))
-    cfg.pretrained_norm_stats = str(norm_path)
+    cfg.dataset_stats_path = str(norm_path)
     monkeypatch.setattr(
         lerobot_dataset,
         "decode_video_frames",
@@ -283,7 +294,7 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
     cache = tmp_path / "cache"
     cache.mkdir()
     cfg.use_cached_latents = True
-    cfg.stage2_latent_cache_dir = str(cache)
+    cfg.video_latent_cache_dir = str(cache)
     contract = _stage2_latent_cache_expected_contract(cfg)
     shape = (
         33,
@@ -307,7 +318,7 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
         action_norm=torch.full((33, cfg.action_dim), 0.5),
         state_norm=torch.full((33, cfg.proprio_dim), 0.25),
         task_indices=torch.zeros(33, dtype=torch.long),
-        concat_layout=cfg.concat_multi_camera,
+        concat_layout=cfg.camera_layout,
         norm_mode="q01/q99"
         if dataset == "droid"
         else "min/max"
@@ -315,6 +326,31 @@ def test_stage2_live_and_cache_action_streams_match(tmp_path, monkeypatch, datas
         else "z-score",
         extra_tensors=extra,
     )
+    if dataset == "droid":
+        from dataclasses import asdict, fields
+
+        from dreamfree.data import latent_data
+        from dreamfree.data.latent_config import PrecomputeConfig
+
+        allowed = {field.name for field in fields(PrecomputeConfig)}
+        prepare_cfg = PrecomputeConfig(
+            **{key: value for key, value in asdict(cfg).items() if key in allowed}
+        )
+        monkeypatch.setattr(
+            latent_data,
+            "_decode_all_frames",
+            lambda path: torch.full((33, 3, 180, 320), 64, dtype=torch.uint8),
+        )
+        payload = latent_data._prepare_episode_payload(
+            cfg=prepare_cfg,
+            normalizer=latent_data._build_normalizer(prepare_cfg),
+            dataset_root=root,
+            meta=latent_data._load_precompute_dataset_metadata(root),
+            actual_ep_idx=0,
+        )
+        assert payload.action_norm.shape == payload.state_norm.shape == (33, 8)
+        torch.testing.assert_close(payload.action_norm[:, :7], torch.full((33, 7), 0.25))
+        torch.testing.assert_close(payload.action_norm[:, 7:], torch.full((33, 1), 0.5))
     encoder = SimpleNamespace(cache_contract=contract, vae_path="fixture", stats_src=str(norm_path))
     _save_episode_cache(
         output_path=cache / "episode_000000.safetensors",
@@ -424,7 +460,7 @@ def test_training_validation_accepts_live_data_mode(tmp_path, stage, model, data
         cfg.stage1_checkpoint = str(tmp_path / "stage1")
         stats = tmp_path / "stats.json"
         stats.write_text("{}")
-        cfg.pretrained_norm_stats = str(stats)
+        cfg.dataset_stats_path = str(stats)
     validators = (
         validate_stage0_training_config,
         validate_stage1_config,

@@ -10,29 +10,25 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
-import dreamfree.evaluation.robotwin.policy as robotwin_dreamfree
 import dreamfree.models.policy_loading as dreamfree_deploy
 from dreamfree.data.robocasa_visual import (
     ROBOCASA_DIRECT_352_DATASET_NAMES,
     ROBOCASA_DIRECT_448_DATASET_NAMES,
-    ROBOCASA_DREAMZERO_352_DIRECT_BILINEAR_V1,
-    ROBOCASA_DREAMZERO_448_DIRECT_BILINEAR_V1,
     ROBOCASA_RAW_CAMERA_SIZE,
-    compose_robocasa_dreamzero_uint8,
-    normalize_uint8_video,
-    required_robocasa_visual_preprocess_id,
+    compose_robocasa_dreamzero,
 )
+from dreamfree.evaluation import checkpoints
 from dreamfree.evaluation.robocasa.robocasa_utils import (
     extract_robocasa_state,
     prepare_robocasa_observation,
 )
+from dreamfree.evaluation.runtime import PolicyRuntime
 
 logger = logging.getLogger(__name__)
-DREAMFREE_STAGE2_CHECKPOINT_TYPE = robotwin_dreamfree.DREAMFREE_STAGE2_CHECKPOINT_TYPE
-DREAMFREE_STAGE2_CHECKPOINT_VERSION = robotwin_dreamfree.DREAMFREE_STAGE2_CHECKPOINT_VERSION
-DREAMFREE_STAGE2_REQUIRED_FILES = robotwin_dreamfree.DREAMFREE_STAGE2_REQUIRED_FILES
+DREAMFREE_STAGE2_CHECKPOINT_TYPE = checkpoints.DREAMFREE_STAGE2_CHECKPOINT_TYPE
+DREAMFREE_STAGE2_CHECKPOINT_VERSION = checkpoints.DREAMFREE_STAGE2_CHECKPOINT_VERSION
+DREAMFREE_STAGE2_REQUIRED_FILES = checkpoints.DREAMFREE_STAGE2_REQUIRED_FILES
 ROBOCASA_EVAL_VIEW_KEYS = ("agentview_left", "agentview_right", "wrist")
 ROBOCASA_DATASET_ALIASES = set(ROBOCASA_DIRECT_352_DATASET_NAMES) | set(
     ROBOCASA_DIRECT_448_DATASET_NAMES
@@ -48,11 +44,11 @@ def _is_none_like(value: Any) -> bool:
 
 
 def _require_dict(value: Any, *, label: str) -> dict[str, Any]:
-    return robotwin_dreamfree._require_dict(value, label=label)
+    return checkpoints.require_dict(value, label=label)
 
 
 def _check_equal(mismatches: list[str], name: str, actual: Any, expected: Any) -> None:
-    robotwin_dreamfree._check_equal(mismatches, name, actual, expected)
+    checkpoints.check_equal(mismatches, name, actual, expected)
 
 
 def _normalize_robocasa_dataset_name(value: Any) -> str:
@@ -61,8 +57,8 @@ def _normalize_robocasa_dataset_name(value: Any) -> str:
 
 def _supported_robocasa_geometry_text() -> str:
     return ", ".join(
-        f"{concat_multi_camera}=>{list(video_size)}"
-        for (concat_multi_camera, video_size) in sorted(ROBOCASA_DREAMZERO_VIDEO_SIZES.items())
+        f"{camera_layout}=>{list(video_size)}"
+        for (camera_layout, video_size) in sorted(ROBOCASA_DREAMZERO_VIDEO_SIZES.items())
     )
 
 
@@ -94,17 +90,17 @@ def _normalize_robocasa_image_size(image_size: Any, *, label: str) -> tuple[int,
 def _resolve_robocasa_image_size_from_dataset(
     dataset: Mapping[str, Any], *, label: str
 ) -> tuple[int, int]:
-    concat_multi_camera = str(dataset.get("concat_multi_camera", "")).strip()
-    expected_size = ROBOCASA_DREAMZERO_VIDEO_SIZES.get(concat_multi_camera)
+    camera_layout = str(dataset.get("camera_layout", "")).strip()
+    expected_size = ROBOCASA_DREAMZERO_VIDEO_SIZES.get(camera_layout)
     if expected_size is None:
         raise ValueError(
-            f"{label}.concat_multi_camera={dataset.get('concat_multi_camera')!r} is unsupported. Supported geometries: {_supported_robocasa_geometry_text()}."
+            f"{label}.camera_layout={dataset.get('camera_layout')!r} is unsupported. Supported geometries: {_supported_robocasa_geometry_text()}."
         )
     raw_video_size = dataset.get("video_size")
     video_size = _normalize_robocasa_image_size(raw_video_size, label=f"{label}.video_size")
     if video_size != expected_size:
         raise ValueError(
-            f"{label}.video_size={list(video_size)!r} is inconsistent with concat_multi_camera={concat_multi_camera!r}; expected {list(expected_size)!r}."
+            f"{label}.video_size={list(video_size)!r} is inconsistent with camera_layout={camera_layout!r}; expected {list(expected_size)!r}."
         )
     return video_size
 
@@ -125,68 +121,6 @@ def _robocasa_image_size_from_metadata(
     return _resolve_robocasa_image_size_from_dataset(dataset, label=f"{label}.dataset")
 
 
-def _robocasa_visual_preprocess_id_from_metadata(metadata: Mapping[str, Any]) -> str | None:
-    dataset = _require_dict(metadata.get("dataset"), label="RoboCasa metadata.dataset")
-    video_size = _resolve_robocasa_image_size_from_dataset(
-        dataset, label="RoboCasa metadata.dataset"
-    )
-    family = robotwin_dreamfree._metadata_video_family(metadata, label="RoboCasa metadata")
-    return required_robocasa_visual_preprocess_id(
-        dataset_name=dataset.get("name"),
-        concat_multi_camera=dataset.get("concat_multi_camera"),
-        height=video_size[0],
-        width=video_size[1],
-        video_model_family=family,
-    )
-
-
-def _append_robocasa_visual_contract_mismatches(
-    mismatches: list[str], metadata: Mapping[str, Any]
-) -> None:
-    expected = _robocasa_visual_preprocess_id_from_metadata(metadata)
-    if expected is None:
-        return
-    _check_equal(mismatches, "visual_preprocess_id", metadata.get("visual_preprocess_id"), expected)
-    _check_equal(
-        mismatches,
-        "source_stage1_visual_preprocess_id",
-        metadata.get("source_stage1_visual_preprocess_id"),
-        expected,
-    )
-    _check_equal(
-        mismatches,
-        "source_stage0_visual_preprocess_id",
-        metadata.get("source_stage0_visual_preprocess_id"),
-        expected,
-    )
-
-
-def _validate_robocasa_visual_lineage(
-    *, stage1_metadata: Mapping[str, Any], stage2_metadata: Mapping[str, Any]
-) -> None:
-    expected = _robocasa_visual_preprocess_id_from_metadata(stage2_metadata)
-    if expected is None:
-        return None
-    mismatches: list[str] = []
-    _check_equal(
-        mismatches,
-        "Stage 1 visual_preprocess_id",
-        stage1_metadata.get("visual_preprocess_id"),
-        expected,
-    )
-    _check_equal(
-        mismatches,
-        "Stage 1 source_stage0_visual_preprocess_id",
-        stage1_metadata.get("source_stage0_visual_preprocess_id"),
-        expected,
-    )
-    if mismatches:
-        raise ValueError(
-            "RoboCasa direct-bilinear eval requires a newly trained Stage 0 -> Stage 1 -> Stage 2 visual lineage: "
-            + "; ".join(mismatches)
-        )
-
-
 def _as_positive_int(mismatches: list[str], name: str, value: Any) -> int:
     try:
         parsed = int(value)
@@ -199,8 +133,10 @@ def _as_positive_int(mismatches: list[str], name: str, value: Any) -> int:
 
 
 def _validate_dreamfree_stage2_for_eval(checkpoint_path: Path, metadata: dict[str, Any]) -> None:
-    robotwin_dreamfree._require_existing_files(
-        checkpoint_path, DREAMFREE_STAGE2_REQUIRED_FILES, label="DreamFree Stage 2"
+    from dreamfree.models.release import required_policy_files
+
+    checkpoints.require_existing_files(
+        checkpoint_path, required_policy_files(metadata), label="DreamFree Stage 2"
     )
     mismatches: list[str] = []
     _check_equal(
@@ -221,10 +157,9 @@ def _validate_dreamfree_stage2_for_eval(checkpoint_path: Path, metadata: dict[st
         mismatches.append(
             f"source_stage1_global_step must be non-negative, got {metadata.get('source_stage1_global_step')!r}"
         )
-    family = robotwin_dreamfree._metadata_video_family(metadata, label="DreamFree Stage 2")
-    expected_hidden_dim = robotwin_dreamfree._expected_hidden_dim_for_family(family)
+    family = checkpoints.metadata_video_family(metadata, label="DreamFree Stage 2")
+    expected_hidden_dim = checkpoints.expected_hidden_dim_for_family(family)
     dataset = _require_dict(metadata.get("dataset"), label="DreamFree Stage 2 metadata.dataset")
-    _append_robocasa_visual_contract_mismatches(mismatches, metadata)
     student = _require_dict(metadata.get("student"), label="DreamFree Stage 2 metadata.student")
     readout = _require_dict(metadata.get("readout"), label="DreamFree Stage 2 metadata.readout")
     action = _require_dict(metadata.get("action"), label="DreamFree Stage 2 metadata.action")
@@ -357,29 +292,6 @@ def _lookup_rgb(obs_data: Mapping[str, Any], key: str) -> Any:
     raise KeyError(f"RoboCasa obs is missing RGB view {key!r}; tried {candidates}.")
 
 
-def _rgb_to_chw_frame(rgb: Any) -> torch.Tensor:
-    if isinstance(rgb, torch.Tensor):
-        tensor = rgb.detach()
-    else:
-        tensor = torch.as_tensor(np.asarray(rgb))
-    if tensor.ndim != 3:
-        raise ValueError(f"RoboCasa RGB frame must be 3D HWC or CHW, got {tuple(tensor.shape)}.")
-    if int(tensor.shape[-1]) == 3:
-        tensor = tensor.permute(2, 0, 1)
-    elif int(tensor.shape[0]) != 3:
-        raise ValueError(f"RoboCasa RGB frame must have 3 channels, got {tuple(tensor.shape)}.")
-    tensor = tensor.contiguous()
-    if tensor.dtype == torch.uint8:
-        tensor = tensor.to(torch.float32) / 255.0
-    elif torch.is_floating_point(tensor):
-        tensor = tensor.to(torch.float32)
-        if float(tensor.max().item()) > 1.5:
-            tensor = tensor / 255.0
-    else:
-        raise TypeError(f"RoboCasa RGB frame must be uint8 or floating, got {tensor.dtype}.")
-    return tensor.unsqueeze(0)
-
-
 def _rgb_to_chw_uint8_frame(rgb: Any) -> torch.Tensor:
     if isinstance(rgb, torch.Tensor):
         tensor = rgb.detach()
@@ -406,79 +318,32 @@ def _rgb_to_chw_uint8_frame(rgb: Any) -> torch.Tensor:
     return tensor.contiguous().unsqueeze(0)
 
 
-def _preprocess_robocasa_camera_frame(
-    frame: torch.Tensor, *, camera_size: tuple[int, int]
-) -> torch.Tensor:
-    if frame.ndim != 4 or int(frame.shape[1]) != 3:
-        raise ValueError(f"Expected RoboCasa camera frame [1, 3, H, W], got {tuple(frame.shape)}.")
-    return F.interpolate(
-        frame, size=camera_size, mode="bilinear", align_corners=False, antialias=True
-    )
-
-
 def build_robocasa_image_tensor(
     obs_data: Mapping[str, Any],
     *,
     image_size: tuple[int, int] = (352, 352),
     device: torch.device | str | None = None,
     dtype: torch.dtype | None = None,
-    visual_preprocess_id: str | None = ROBOCASA_DREAMZERO_352_DIRECT_BILINEAR_V1,
 ) -> torch.Tensor:
-    """Build one normalized RoboCasa DreamZero-layout image tensor."""
-    (expected_height, expected_width) = _normalize_robocasa_image_size(
-        image_size, label="image_size"
-    )
-    if visual_preprocess_id is not None:
-        expected_ids = {
-            (352, 352): ROBOCASA_DREAMZERO_352_DIRECT_BILINEAR_V1,
-            (448, 448): ROBOCASA_DREAMZERO_448_DIRECT_BILINEAR_V1,
-        }
-        expected_id = expected_ids.get((expected_height, expected_width))
-        if expected_id is None or visual_preprocess_id != expected_id:
-            raise ValueError(f"Unsupported RoboCasa visual_preprocess_id={visual_preprocess_id!r}.")
-        frames = [
-            _rgb_to_chw_uint8_frame(_lookup_rgb(obs_data, key)) for key in ROBOCASA_EVAL_VIEW_KEYS
-        ]
-        image = normalize_uint8_video(
-            compose_robocasa_dreamzero_uint8(
-                torch.stack(frames, dim=0),
-                output_size=(expected_height, expected_width),
-                expected_raw_size=ROBOCASA_RAW_CAMERA_SIZE,
-            )
-        )
-        if device is not None or dtype is not None:
-            image = image.to(device=device, dtype=dtype)
-        return image.contiguous()
-    camera_size = (expected_height // 2, expected_width // 2)
-    frames = [_rgb_to_chw_frame(_lookup_rgb(obs_data, key)) for key in ROBOCASA_EVAL_VIEW_KEYS]
-    processed = [
-        _preprocess_robocasa_camera_frame(frame, camera_size=camera_size) for frame in frames
+    """Use the same floating-point bilinear resize as RoboCasa training."""
+    output_size = _normalize_robocasa_image_size(image_size, label="image_size")
+    frames = [
+        _rgb_to_chw_uint8_frame(_lookup_rgb(obs_data, key)) for key in ROBOCASA_EVAL_VIEW_KEYS
     ]
-    video = torch.stack(processed, dim=0)
-    left = video[0]
-    right = video[1]
-    wrist = video[2]
-    wrist_wide = wrist.repeat_interleave(2, dim=-1)
-    bottom = torch.cat([left, right], dim=-1)
-    image = torch.cat([wrist_wide, bottom], dim=-2)
-    expected_shape = (1, 3, expected_height, expected_width)
-    if tuple(image.shape) != expected_shape:
-        raise ValueError(
-            f"RoboCasa image tensor must be {list(expected_shape)}, got {tuple(image.shape)}."
-        )
-    image = image.clamp(0.0, 1.0) * 2.0 - 1.0
-    if device is not None or dtype is not None:
-        image = image.to(device=device, dtype=dtype)
-    return image.contiguous()
+    image = compose_robocasa_dreamzero(
+        torch.stack(frames, dim=0),
+        output_size=output_size,
+        expected_raw_size=ROBOCASA_RAW_CAMERA_SIZE,
+    )
+    return image.to(device=device, dtype=dtype).contiguous()
 
 
-class RoboCasaPolicy(robotwin_dreamfree.RobotWinPolicy):
+class RoboCasaPolicy(PolicyRuntime):
     def __init__(
         self,
         *,
         flip_images: bool,
         robocasa_image_size: tuple[int, int],
-        robocasa_visual_preprocess_id: str | None,
         compile_dit: bool,
         compile_dit_block_counts: Mapping[str, int],
         **kwargs: Any,
@@ -488,8 +353,7 @@ class RoboCasaPolicy(robotwin_dreamfree.RobotWinPolicy):
         self.robocasa_image_size = _normalize_robocasa_image_size(
             robocasa_image_size, label="robocasa_image_size"
         )
-        self.robocasa_visual_preprocess_id = robocasa_visual_preprocess_id
-        if self.robocasa_visual_preprocess_id is not None and (not self.flip_images):
+        if not self.flip_images:
             raise ValueError(
                 "RoboCasa direct-bilinear evaluation requires flip_images=true to match cached training pixels."
             )
@@ -514,7 +378,6 @@ class RoboCasaPolicy(robotwin_dreamfree.RobotWinPolicy):
             image_size=self.robocasa_image_size,
             device=self.device,
             dtype=self.model_dtype,
-            visual_preprocess_id=self.robocasa_visual_preprocess_id,
         )
         state_vector = extract_robocasa_state(observation)
         proprio = dreamfree_deploy._normalize_state_with_processor(self.processor, state_vector).to(

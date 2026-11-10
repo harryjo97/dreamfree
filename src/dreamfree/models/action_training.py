@@ -7,11 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dreamfree.data.stage2 import (
-    _TimingRecorder,
-    _validate_stage2_input_latents_contract,
-    build_stage2_cached_inputs,
-)
+from dreamfree.data.action_batch import _TimingRecorder, prepare_action_batch
+from dreamfree.data.action_cache import _validate_stage2_input_latents_contract
+from dreamfree.models import action_history
 from dreamfree.models.compile import compile_dit_blocks
 from dreamfree.models.conditioning import TeacherStateActionConditioner
 from dreamfree.models.student import (
@@ -102,6 +100,8 @@ class StudentReadoutActionConditioner(nn.Module):
 
 
 class ActionTrainingModel(nn.Module):
+    """Frozen visual tokens -> trainable readout/conditioning -> action flow loss."""
+
     def __init__(
         self,
         *,
@@ -118,6 +118,7 @@ class ActionTrainingModel(nn.Module):
         self.action_model = action_model
         self.conditioner = conditioner
         self.cfg = cfg
+        action_history.validate_config(cfg)
         self.action_scheduler = WanContinuousFlowMatchScheduler(
             num_train_timesteps=int(cfg.num_train_timesteps), shift=float(cfg.action_train_shift)
         )
@@ -177,9 +178,39 @@ class ActionTrainingModel(nn.Module):
         self, *, proprio_query_emb: torch.Tensor, inputs: dict[str, Any], action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Build the fixed ActionDiT query prefix and optional full query mask."""
+        if self.cfg.action_history_horizon:
+            prefix, mask, fractions = action_history.build_query_prefix(
+                self.action_model.action_encoder,
+                proprio_query_emb,
+                inputs.get("previous_action"),
+                inputs.get("previous_action_is_pad"),
+                horizon=self.cfg.action_history_horizon,
+                action_dim=self.cfg.action_dim,
+                future_tokens=action.shape[1],
+                dropout=self.cfg.action_history_dropout,
+                training=self.training,
+            )
+            self._last_history_fractions = fractions
+            return prefix, mask
+        if "previous_action" in inputs or "previous_action_is_pad" in inputs:
+            raise ValueError("History was supplied but action_history_horizon is zero.")
         return (proprio_query_emb, None)
 
     def training_loss(self, sample: dict[str, Any]) -> tuple[torch.Tensor, dict[str, float]]:
+        """Compute action flow matching without updating the visual encoder.
+
+        Args:
+            sample: Collated live/cached batch accepted by prepare_action_batch:
+                normalized action (B, T_action, A), aligned proprio
+                (B, T_action, P), text, and visual inputs. action_is_pad=True
+                excludes a target from the per-sample loss. Optional issued
+                action history uses normalized targets and its own padding mask.
+
+        Returns:
+            Scalar loss and logging metrics. Gradients reach the readout,
+            conditioner/proprio encoder, and action DiT, but not the student/VAE.
+            Loss averages valid timesteps per sample before scheduler weighting.
+        """
         if bool(self.cfg.use_cached_latents):
             if "video" in sample:
                 raise ValueError(
@@ -196,7 +227,7 @@ class ActionTrainingModel(nn.Module):
             self._profile_section("stage2_input_prep"),
             timing_recorder.record("diag_input_prep_seconds"),
         ):
-            inputs = build_stage2_cached_inputs(self.core, sample, timing_recorder=timing_recorder)
+            inputs = prepare_action_batch(self.core, sample, timing_recorder=timing_recorder)
         z_clean = inputs["input_latents"]
         _validate_stage2_input_latents_contract(z_clean, self.cfg, stage_label="DreamFree Stage 2")
         context = inputs["context"]
@@ -205,7 +236,7 @@ class ActionTrainingModel(nn.Module):
         action = inputs["action"]
         proprio = inputs["proprio"]
         action_is_pad = inputs["action_is_pad"]
-        first_frame_latents = z_clean[:, :, 0:1].detach()
+        first_frame_latents = z_clean[:, :, 0:1].detach()  # (B, C, 1, h, w)
         with (
             self._profile_section("stage2_student_forward"),
             timing_recorder.record("diag_student_forward_seconds"),
@@ -297,7 +328,8 @@ class ActionTrainingModel(nn.Module):
         prefix_len = int(action_query_prefix_emb.shape[1])
         if prefix_len <= 0:
             raise ValueError("DreamFree Stage 2 query prefix must contribute at least one token.")
-        pred_action = pred_sequence[:, prefix_len:, :]
+        # Prefix tokens condition the prediction; only future actions are targets.
+        pred_action = pred_sequence[:, prefix_len:, :]  # (B, T_action, A)
         if tuple(pred_action.shape) != tuple(target_action.shape):
             raise ValueError(
                 f"Predicted action velocity shape mismatch: pred={tuple(pred_action.shape)} target={tuple(target_action.shape)}."
@@ -357,6 +389,19 @@ class ActionTrainingModel(nn.Module):
             "action_valid_fraction": action_valid_fraction,
             "query_prefix_tokens": float(prefix_len),
         }
+        if self.cfg.action_history_horizon:
+            valid, effective, dropped = self._last_history_fractions.detach().cpu().tolist()
+            metrics.update(
+                action_history_valid_fraction=valid,
+                action_history_effective_valid_fraction=effective,
+                action_history_dropout_fraction=dropped,
+                action_history_horizon=float(self.cfg.action_history_horizon),
+                action_history_dropout=float(self.cfg.action_history_dropout),
+            )
+            self.last_shape_metadata.update(
+                action_history_horizon=self.cfg.action_history_horizon,
+                query_token_order=action_history.TOKEN_ORDER,
+            )
         if timing_recorder.enabled:
             metrics.update(
                 {key: float(value) for (key, value) in sorted(timing_recorder.values.items())}

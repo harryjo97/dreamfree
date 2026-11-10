@@ -11,7 +11,6 @@ from accelerate import Accelerator
 from safetensors.torch import load_file as load_safetensors
 from safetensors.torch import save_file as save_safetensors
 
-from dreamfree.data.distillation import _stage1_visual_preprocess_id
 from dreamfree.models.artifacts import _optional_path_identity, _stage0_lora_checkpoint_identity
 from dreamfree.models.distillation import (
     DistillationModel,
@@ -42,6 +41,7 @@ from dreamfree.training.runtime import (
     _json_load,
     _parse_optional_int,
 )
+from dreamfree.training.stage1 import distributed
 from dreamfree.training.stage1.config import Stage1Config
 from dreamfree.training.stage1.constants import (
     STAGE1_CHECKPOINT_DIR_RE,
@@ -83,17 +83,8 @@ def build_stage1_checkpoint_metadata(
     return {
         "checkpoint_type": STAGE1_CHECKPOINT_TYPE,
         "checkpoint_version": STAGE1_CHECKPOINT_VERSION,
+        "student_train_mode": cfg.student_train_mode,
         "global_step": int(global_step),
-        **(
-            {
-                "visual_preprocess_id": _stage1_visual_preprocess_id(cfg),
-                "source_stage0_visual_preprocess_id": model.stage0_trainer_state.get(
-                    "visual_preprocess_id"
-                ),
-            }
-            if _stage1_visual_preprocess_id(cfg) is not None
-            else {}
-        ),
         "config": asdict(cfg),
         **{},
         "model_contract": {
@@ -165,8 +156,8 @@ def build_stage1_checkpoint_metadata(
             "sigma_source": str(student_sigma_config.source),
         },
         "teacher_state": {
-            "loss": str(cfg.teacher_state_loss),
-            "lambda_teacher_state": float(cfg.lambda_teacher_state),
+            "loss": str(cfg.distillation_loss),
+            "distillation_loss_weight": float(cfg.distillation_loss_weight),
             "target_token_scope": _normalize_teacher_target_token_scope(
                 cfg.teacher_target_token_scope
             ),
@@ -201,18 +192,16 @@ def validate_stage1_checkpoint_metadata(cfg: Stage1Config, metadata: dict[str, A
 
     check("checkpoint_type", metadata.get("checkpoint_type"), STAGE1_CHECKPOINT_TYPE)
     check("checkpoint_version", metadata.get("checkpoint_version"), STAGE1_CHECKPOINT_VERSION)
+    check("student_train_mode", metadata.get("student_train_mode", "lora"), cfg.student_train_mode)
+    check(
+        "config.student_train_mode",
+        metadata.get("config", {}).get("student_train_mode", "lora"),
+        cfg.student_train_mode,
+    )
     if metadata.get("episode_subset") is not None:
         check("episode_subset", metadata.get("episode_subset"), None)
     model_contract = metadata.get("model_contract", {})
     metadata_config = metadata.get("config", {})
-    expected_visual_id = _stage1_visual_preprocess_id(cfg)
-    if expected_visual_id is not None:
-        check("visual_preprocess_id", metadata.get("visual_preprocess_id"), expected_visual_id)
-        check(
-            "source_stage0_visual_preprocess_id",
-            metadata.get("source_stage0_visual_preprocess_id"),
-            expected_visual_id,
-        )
     check(
         "model_contract.video_model_family",
         model_contract.get(
@@ -443,22 +432,28 @@ def validate_stage1_checkpoint_metadata(cfg: Stage1Config, metadata: dict[str, A
         float(cfg.projector_mlp_ratio),
     )
     loaded_lora = metadata.get("stage1_lora_config", {})
-    check("stage1_lora.rank", int(loaded_lora.get("rank", -1)), int(cfg.stage1_lora_rank))
-    check("stage1_lora.alpha", float(loaded_lora.get("alpha", -1)), float(cfg.stage1_lora_alpha))
-    check(
-        "stage1_lora.dropout", float(loaded_lora.get("dropout", -1)), float(cfg.stage1_lora_dropout)
-    )
-    check(
-        "stage1_lora.target_modules",
-        loaded_lora.get("target_modules"),
-        str(cfg.stage1_lora_target_modules),
-    )
+    if cfg.student_train_mode == "full":
+        check("stage1_lora_config", loaded_lora, {"enabled": False})
+    else:
+        check("stage1_lora.enabled", loaded_lora.get("enabled", True), True)
+        check("stage1_lora.rank", int(loaded_lora.get("rank", -1)), int(cfg.lora_rank))
+        check("stage1_lora.alpha", float(loaded_lora.get("alpha", -1)), float(cfg.lora_alpha))
+        check(
+            "stage1_lora.dropout",
+            float(loaded_lora.get("dropout", -1)),
+            float(cfg.lora_dropout),
+        )
+        check(
+            "stage1_lora.target_modules",
+            loaded_lora.get("target_modules"),
+            str(cfg.lora_target_modules),
+        )
     teacher_state = metadata.get("teacher_state", {})
-    check("teacher_state.loss", teacher_state.get("loss"), str(cfg.teacher_state_loss))
+    check("teacher_state.loss", teacher_state.get("loss"), str(cfg.distillation_loss))
     check(
-        "teacher_state.lambda_teacher_state",
-        float(teacher_state.get("lambda_teacher_state", -1)),
-        float(cfg.lambda_teacher_state),
+        "teacher_state.distillation_loss_weight",
+        float(teacher_state.get("distillation_loss_weight", -1)),
+        float(cfg.distillation_loss_weight),
     )
     check(
         "teacher_state.target_token_scope",
@@ -497,7 +492,7 @@ def validate_stage1_checkpoint_metadata(cfg: Stage1Config, metadata: dict[str, A
         "projector_output_tokens",
         "D_student",
         "D_teacher",
-        "teacher_state_loss",
+        "distillation_loss",
     ):
         if key not in shapes:
             mismatches.append(f"shapes.{key} is missing")
@@ -511,8 +506,8 @@ def validate_stage1_checkpoint_metadata(cfg: Stage1Config, metadata: dict[str, A
         check("D_student", int(shapes["D_student"]), int(cfg.video_hidden_dim))
     if shapes.get("D_teacher") is not None:
         check("D_teacher", int(shapes["D_teacher"]), int(cfg.video_hidden_dim))
-    if shapes.get("teacher_state_loss") is not None:
-        check("teacher_state_loss", shapes["teacher_state_loss"], str(cfg.teacher_state_loss))
+    if shapes.get("distillation_loss") is not None:
+        check("distillation_loss", shapes["distillation_loss"], str(cfg.distillation_loss))
     if mismatches:
         raise ValueError("Stage 1 checkpoint metadata mismatch: " + "; ".join(mismatches))
 
@@ -556,15 +551,22 @@ def _read_resume_metadata(cfg: Stage1Config) -> tuple[Path, dict[str, Any]] | No
     resume_dir = _resolve_resume_dir(cfg)
     if resume_dir is None:
         return None
-    required = ["trainer_state.json", "stage1_lora.safetensors", "projector.safetensors"]
+    weights = (
+        "student_dit.safetensors" if cfg.student_train_mode == "full" else "stage1_lora.safetensors"
+    )
+    required = ["trainer_state.json", weights, "projector.safetensors"]
+    metadata = _json_load(resume_dir / "trainer_state.json")
     if bool(cfg.resume_optimizer_state):
-        required.append("optim.pt")
+        required.append(
+            "fsdp2_state/.metadata"
+            if metadata.get("optimizer_checkpoint_format") == "fsdp2"
+            else "optim.pt"
+        )
     missing = [name for name in required if not (resume_dir / name).exists()]
     if missing:
         raise FileNotFoundError(
             f"Stage 1 resume checkpoint is missing files {missing}: {resume_dir}"
         )
-    metadata = _json_load(resume_dir / "trainer_state.json")
     validate_stage1_checkpoint_metadata(cfg, metadata)
     step_match = re.fullmatch("step_(\\d+)", resume_dir.name)
     if step_match is not None and int(step_match.group(1)) != int(metadata["global_step"]):
@@ -600,7 +602,7 @@ def _prune_stage1_checkpoints(cfg: Stage1Config) -> list[Path]:
     for _, path in stale:
         shutil.rmtree(path)
         removed.append(path)
-        logger.info("[ckpt] removed old Stage 1 checkpoint %s", path)
+        logger.info("[checkpoint] removed old Stage 1 checkpoint %s", path)
     return removed
 
 
@@ -613,7 +615,7 @@ def save_stage1_checkpoint(
     cfg: Stage1Config,
     global_step: int,
 ) -> Path | None:
-    """Save Stage 1 LoRA, projector, metadata, and optional optimizer state.
+    """Save Stage 1 student weights, projector, metadata, and optional optimizer state.
 
     Args:
         accelerator: Accelerator coordinating distributed processes.
@@ -630,28 +632,58 @@ def save_stage1_checkpoint(
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    accelerator.wait_for_everyone()
+    if distributed.is_fsdp2(accelerator):
+        distributed.reshard_for_checkpoint(model)
+    gathered = (
+        distributed.portable_states(accelerator, model)
+        if distributed.is_fsdp2(accelerator)
+        else None
+    )
+    if cfg.save_optimizer_state and distributed.is_fsdp2(accelerator):
+        distributed.optimizer_state(model, optimizer, scheduler, checkpoint_dir / "fsdp2_state")
+    if accelerator.is_main_process:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
         unwrapped: DistillationModel = accelerator.unwrap_model(model)
-        save_safetensors(
-            collect_lora_state_dict(
-                unwrapped.core.dit, adapter_name=unwrapped.student_lora_adapter_name
-            ),
-            str(checkpoint_dir / "stage1_lora.safetensors"),
+        if cfg.student_train_mode == "full":
+            student_state = (
+                gathered[0]
+                if gathered is not None
+                else {
+                    name: tensor.detach().cpu().contiguous()
+                    for name, tensor in unwrapped.core.dit.state_dict().items()
+                }
+            )
+            save_safetensors(student_state, str(checkpoint_dir / "student_dit.safetensors"))
+        else:
+            save_safetensors(
+                collect_lora_state_dict(
+                    unwrapped.core.dit, adapter_name=unwrapped.student_lora_adapter_name
+                ),
+                str(checkpoint_dir / "stage1_lora.safetensors"),
+            )
+        projector_state = (
+            gathered[1]
+            if gathered is not None
+            else {
+                name: tensor.detach().cpu().contiguous()
+                for (name, tensor) in unwrapped.projector.state_dict().items()
+            }
         )
-        projector_state = {
-            name: tensor.detach().cpu().contiguous()
-            for (name, tensor) in unwrapped.projector.state_dict().items()
-        }
         save_safetensors(projector_state, str(checkpoint_dir / "projector.safetensors"))
-        _json_dump(
-            checkpoint_dir / "trainer_state.json",
-            build_stage1_checkpoint_metadata(cfg=cfg, model=unwrapped, global_step=global_step),
+        metadata = build_stage1_checkpoint_metadata(
+            cfg=cfg, model=unwrapped, global_step=global_step
         )
-        if cfg.save_optimizer_state:
+        metadata["optimizer_checkpoint_format"] = (
+            "fsdp2" if distributed.is_fsdp2(accelerator) else "torch"
+        )
+        _json_dump(checkpoint_dir / "trainer_state.json", metadata)
+        if cfg.save_optimizer_state and not distributed.is_fsdp2(accelerator):
             _atomic_torch_save(
                 checkpoint_dir / "optim.pt",
                 {"optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict()},
             )
-        logger.info("[ckpt] saved Stage 1 checkpoint to %s", checkpoint_dir)
+        logger.info("[checkpoint] saved Stage 1 checkpoint to %s", checkpoint_dir)
         _prune_stage1_checkpoints(cfg)
     accelerator.wait_for_everyone()
     return checkpoint_dir if accelerator.is_main_process else None
@@ -694,11 +726,16 @@ def _load_stage1_model_weights(wrapper: DistillationModel, resume_dir: Path) -> 
         wrapper: Stage 1 wrapper whose DiT LoRA and projector will be updated.
         resume_dir: Checkpoint directory containing safetensors files.
     """
-    load_lora_state_dict(
-        wrapper.core.dit,
-        load_safetensors(str(resume_dir / "stage1_lora.safetensors"), device="cpu"),
-        strict=True,
-        adapter_name=wrapper.student_lora_adapter_name,
-    )
+    if wrapper.cfg.student_train_mode == "full":
+        wrapper.core.dit.load_state_dict(
+            load_safetensors(str(resume_dir / "student_dit.safetensors"), device="cpu"), strict=True
+        )
+    else:
+        load_lora_state_dict(
+            wrapper.core.dit,
+            load_safetensors(str(resume_dir / "stage1_lora.safetensors"), device="cpu"),
+            strict=True,
+            adapter_name=wrapper.student_lora_adapter_name,
+        )
     projector_state = load_safetensors(str(resume_dir / "projector.safetensors"), device="cpu")
     wrapper.projector.load_state_dict(projector_state, strict=True)

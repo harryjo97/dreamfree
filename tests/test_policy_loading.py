@@ -7,10 +7,22 @@ import pytest
 import torch
 
 from dreamfree.data.latent_preparation import _resolve_runtime
-from dreamfree.evaluation.droid import deploy_policy as droid
-from dreamfree.evaluation.droid.deploy_policy_optimized import _base_args
+from dreamfree.evaluation import checkpoints
+from dreamfree.evaluation.droid_sim import deploy_policy as droid
+from dreamfree.evaluation.droid_sim.deploy_policy_optimized import _base_args
 from dreamfree.evaluation.robocasa.inference_options import FEATURES, resolve_options
 from dreamfree.training.stage2.config import Stage2Config
+
+
+def test_removed_evaluation_environment_fails_before_checkpoint_loading(monkeypatch):
+    from dreamfree.evaluation import policy
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("Unsupported evaluation tried to load a checkpoint.")
+
+    monkeypatch.setattr(policy, "resolve_policy_checkpoint", unexpected_load)
+    with pytest.raises(ValueError, match="Unknown evaluation environment: 'robotwin'"):
+        policy.build_policy("robotwin", {"checkpoint_path": "/unused/checkpoint"})
 
 
 @pytest.mark.parametrize("device, precision", [("cpu", "no"), ("cuda:2", "bf16")])
@@ -30,19 +42,15 @@ def test_droid_policy_assembly_preserves_inference_settings(
     monkeypatch.setattr(droid, "load_droid_dataset_stats", lambda path: {})
     monkeypatch.setattr(droid, "build_droid_processor", lambda **kw: object())
     monkeypatch.setattr(droid, "load_safetensors", lambda *args, **kw: {})
+    monkeypatch.setattr(checkpoints, "require_checkpoint_dir", lambda path, **kw: tmp_path)
+    monkeypatch.setattr(checkpoints, "require_existing_file", lambda path, **kw: path)
     monkeypatch.setattr(
-        droid.robotwin_dreamfree, "_require_checkpoint_dir", lambda path, **kw: tmp_path
-    )
-    monkeypatch.setattr(droid.robotwin_dreamfree, "_require_existing_file", lambda path, **kw: path)
-    monkeypatch.setattr(
-        droid.robotwin_dreamfree,
-        "_validate_dreamfree_source_stage1_matches_stage2",
+        checkpoints,
+        "validate_stage1_stage2_lineage",
         lambda **kw: None,
     )
-    monkeypatch.setattr(
-        droid.robotwin_dreamfree, "_build_dreamfree_stage2_cfg_from_metadata", lambda meta: config
-    )
-    monkeypatch.setattr(droid.robotwin_dreamfree, "_build_readout_for_eval", lambda **kw: object())
+    monkeypatch.setattr(checkpoints, "stage2_config_from_metadata", lambda meta: config)
+    monkeypatch.setattr(checkpoints, "load_readout", lambda **kw: object())
 
     def load_core(**kwargs):
         core_calls.append(kwargs)
@@ -62,7 +70,7 @@ def test_droid_policy_assembly_preserves_inference_settings(
     monkeypatch.setattr(droid.ActionDiT, "from_pretrained", lambda **kw: torch.nn.Identity())
     policy = droid.build_policy_from_args(
         {
-            "ckpt_setting": str(tmp_path),
+            "checkpoint_path": str(tmp_path),
             "device": device,
             "mixed_precision": precision,
             "seed": 7,
@@ -78,7 +86,7 @@ def test_droid_policy_assembly_preserves_inference_settings(
     )
     assert core_calls[0]["device"] == device
     assert core_calls[0]["dtype"] == (torch.float32 if precision == "no" else torch.bfloat16)
-    assert policy.rand_device == "cpu"
+    assert policy.noise_device == "cpu"
     assert policy.action_unipc_solver_type == "bh2"
     assert policy.num_inference_steps == 16
     assert policy.seed == 7
@@ -118,7 +126,7 @@ def test_robocasa_optimization_eligibility_and_promotion(model):
     )
     assert options["enabled"]
     assert options["features"]["action_cuda_graph"]["enabled"]
-    assert options["features"]["stage1_cuda_graph"]["enabled"]
+    assert options["features"]["encoder_cuda_graph"]["enabled"]
     assert options["features"]["vae_first_frame_only"]["enabled"] is not small
     with pytest.raises(ValueError, match="10 or 16 Euler steps"):
         resolve_options(metadata, {"inference_optimization": "true", "num_inference_steps": 3})

@@ -32,7 +32,7 @@ GRIPPER_BINARIZATION = "client_threshold_gt_0.5"
 DROID_GRIPPER_NORMALIZED_COMMAND_SCALE = 1.0
 DEFAULT_DROID_GRIPPER_CLOSE_THRESHOLD = 0.5
 NATIVE_POLICY_RUNTIME = "dreamfree_stage2_student_native_optimized"
-SUPPORTED_CHECKPOINT_TYPES = ("dreamfree_stage2",)
+SUPPORTED_CHECKPOINT_TYPES = ("dreamfree_stage2", "dreamfree_stage2_action_history")
 ISSUED_ACTION_HISTORY_KEY = "deployment/issued_action_history"
 ISSUED_ACTION_HISTORY_IS_PAD_KEY = "deployment/issued_action_history_is_pad"
 ACTION_HISTORY_POLICY_RUNTIMES = ()
@@ -351,6 +351,17 @@ def validate_server_info(
     if expected_checkpoint_type is not None:
         expected["checkpoint_type"] = str(expected_checkpoint_type)
     mismatches = []
+    checkpoint_type = info.get("checkpoint_type")
+    if checkpoint_type not in SUPPORTED_CHECKPOINT_TYPES:
+        mismatches.append("Unsupported checkpoint_type: {!r}".format(checkpoint_type))
+    horizon = info.get("action_history_horizon")
+    if checkpoint_type == "dreamfree_stage2_action_history":
+        if type(horizon) is not int or horizon <= 0:
+            mismatches.append(
+                "Action-history checkpoints require a positive action_history_horizon."
+            )
+    elif horizon not in (None, 0):
+        mismatches.append("Standard checkpoints must not require action history.")
     for key, expected_value in expected.items():
         if info.get(key) != expected_value:
             mismatches.append(
@@ -1041,7 +1052,7 @@ def _parse_args(argv=None):
     parser.add_argument("--expected-action-noise-seed", type=_bounded_seed, default=None)
     parser.add_argument("--episode-seed", type=_bounded_seed, default=None)
     parser.add_argument("--expected-action-horizon", type=int, default=32)
-    parser.add_argument("--open-loop-horizon", type=int, default=8)
+    parser.add_argument("--open-loop-horizon", type=int, default=24)
     parser.add_argument("--instruction", default=None)
     parser.add_argument("--max-timesteps", type=int, default=600)
     parser.add_argument("--rpc-timeout-sec", type=float, default=600.0)
@@ -1239,7 +1250,7 @@ def main():
         validate_reset_response(reset_response, args.episode_seed)
         print("Policy reset contract validated.")
         issued_action_history = None
-        if args.expected_policy_runtime in ACTION_HISTORY_POLICY_RUNTIMES:
+        if server_info.get("checkpoint_type") == "dreamfree_stage2_action_history":
             issued_action_history = IssuedActionHistoryBuffer(server_info["action_history_horizon"])
         try:
             from droid.robot_env import RobotEnv

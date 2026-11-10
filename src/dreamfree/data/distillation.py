@@ -7,7 +7,6 @@ from typing import Any, Sequence
 
 import torch
 
-from dreamfree.data.robocasa_visual import required_robocasa_visual_preprocess_id
 from dreamfree.data.stage1_cache import (
     CachedStage1LatentDataset,
     _stage1_latent_cache_expected_contract,
@@ -56,12 +55,12 @@ def _is_stage1_robocasa_success_family_dataset(cfg):
 def _stage1_robocasa_layout_spec(cfg: Stage1Config) -> dict[str, int | str]:
     if _is_stage1_robocasa_448_dataset(cfg):
         return {
-            "concat_multi_camera": ROBOCASA_STAGE1_448_CONCAT_MULTI_CAMERA,
+            "camera_layout": ROBOCASA_STAGE1_448_CONCAT_MULTI_CAMERA,
             "height": ROBOCASA_STAGE1_448_HEIGHT,
             "width": ROBOCASA_STAGE1_448_WIDTH,
         }
     return {
-        "concat_multi_camera": ROBOCASA_STAGE1_CONCAT_MULTI_CAMERA,
+        "camera_layout": ROBOCASA_STAGE1_CONCAT_MULTI_CAMERA,
         "height": ROBOCASA_STAGE1_HEIGHT,
         "width": ROBOCASA_STAGE1_WIDTH,
     }
@@ -379,16 +378,6 @@ def _first_stage1_latent_cache_file(latent_cache_dir: Path) -> Path:
             f"No precomputed video latent files found under {latent_cache_dir}. Precompute the cache first or set use_cached_latents=false."
         )
     return first_episode
-
-
-def _stage1_visual_preprocess_id(cfg: Any) -> str | None:
-    return required_robocasa_visual_preprocess_id(
-        dataset_name=getattr(cfg, "dataset_name", ""),
-        concat_multi_camera=getattr(cfg, "concat_multi_camera", ""),
-        height=getattr(cfg, "height", -1),
-        width=getattr(cfg, "width", -1),
-        video_model_family=getattr(cfg, "video_model_family", ""),
-    )
 
 
 def _build_stage1_dataset(task_roots, cfg, *, split):

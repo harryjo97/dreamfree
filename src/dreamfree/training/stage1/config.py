@@ -25,10 +25,10 @@ class Stage1StudentSigmaConfig:
 class Stage1Config:
     """Runtime configuration for Stage 1 LeRobot teacher-state prediction.
 
-    The defaults encode one strict experiment setup: build a Stage0-merged Wan
-    core, use frozen teacher extraction with Stage 1 LoRA disabled, train the
-    student path through a new Stage 1 LoRA plus projector, and require cached
-    text embeddings on disk.
+    Use dreamfree.config.load_config to apply model/dataset/preset defaults.
+    LoRA mode shares the Stage 0 merged DiT; full mode owns a separate frozen
+    teacher and trainable student. Both train a projector. Missing text-cache
+    entries are prepared before dataset construction. See docs/configuration.md.
     """
 
     model_base_path: str = "./assets/models"
@@ -52,13 +52,13 @@ class Stage1Config:
     sample_stride_frames: int = 4
     height: int = 384
     width: int = 320
-    concat_multi_camera: str = "robotwin"
+    camera_layout: str = "robotwin"
     train_epoch_size: int = 200000
     val_epoch_size: int = 512
     val_fraction: float = 0.01
     video_backend: str | None = None
-    use_cached_latents: bool = True
-    stage2_latent_cache_dir: str | None = None
+    use_cached_latents: bool = False
+    video_latent_cache_dir: str | None = None
     stage0_lora_checkpoint: str = "./assets/models"
     stage0_eval_reference: str = "./assets/models"
     stage0_expected_global_step: int | None = None
@@ -72,6 +72,8 @@ class Stage1Config:
     stage0_expected_tokenizer_model_id: str = "Wan-AI/Wan2.1-T2V-1.3B"
     stage0_expected_tokenizer_max_len: int = 128
     use_shared_teacher_student_dit: bool = True
+    student_train_mode: str = "lora"
+    trim_frozen_teacher_blocks: bool = False
     video_model_family: str = "wan22_ti2v_5b"
     teacher_dit_role: str = "single"
     student_dit_role: str = "single"
@@ -106,17 +108,17 @@ class Stage1Config:
     student_sigma_min: float | None = None
     student_sigma_max: float | None = None
     student_init_mode: str = STAGE1_STUDENT_INIT_STAGE0_MERGED
-    stage1_lora_rank: int = 32
-    stage1_lora_alpha: float = 32.0
-    stage1_lora_dropout: float = 0.0
-    stage1_lora_target_modules: str = "attention_and_ffn"
+    lora_rank: int = 32
+    lora_alpha: float = 32.0
+    lora_dropout: float = 0.0
+    lora_target_modules: str = "attention_and_ffn"
     projector_type: str = "first_frame_decoder"
     projector_dim: int = 1024
     projector_num_layers: int = 2
     projector_num_heads: int = 8
     projector_mlp_ratio: float = 4.0
-    teacher_state_loss: str = "cosine"
-    lambda_teacher_state: float = 1.0
+    distillation_loss: str = "cosine"
+    distillation_loss_weight: float = 1.0
     train_shift: float = 5.0
     infer_shift: float = 5.0
     num_train_timesteps: int = 1000
@@ -130,6 +132,9 @@ class Stage1Config:
     max_steps: int = 100000
     num_epochs: float | None = None
     learning_rate: float = 0.0001
+    projector_learning_rate: float | None = None
+    warmup_steps: int | None = None
+    gradient_sync_each_batch: bool = False
     weight_decay: float = 0.0
     warmup_ratio: float = 0.05
     lr_scheduler: str = "cosine"

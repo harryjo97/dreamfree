@@ -8,7 +8,7 @@ import torch
 from accelerate import Accelerator
 from safetensors.torch import save_file as save_safetensors
 
-from dreamfree.data.contracts import _normalize_latent_frame0_mode, _stage0_visual_preprocess_id
+from dreamfree.data.contracts import _normalize_latent_frame0_mode
 from dreamfree.models.adaptation import _stage0_sigma_metadata
 from dreamfree.models.lora import LoRALinear
 from dreamfree.training.runtime import _dtype_from_name, _json_dump
@@ -175,11 +175,6 @@ def export_merged_dit_safetensors(
         export_dir / "stage0_config.json",
         {
             "global_step": int(global_step),
-            **(
-                {"visual_preprocess_id": _stage0_visual_preprocess_id(cfg)}
-                if _stage0_visual_preprocess_id(cfg) is not None
-                else {}
-            ),
             "base_model_id": str(cfg.model_id),
             "video_model_family": str(cfg.video_model_family),
             "dit_role": str(cfg.dit_role),

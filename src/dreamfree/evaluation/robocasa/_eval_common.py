@@ -40,13 +40,24 @@ def _resolve_optional_path(path_value: Any, *, base: Path) -> Path | None:
 def _load_checkpoint_metadata(ckpt_path: Path) -> dict[str, Any] | None:
     if not ckpt_path.is_dir():
         return None
+    from dreamfree.models.release import (
+        is_release_checkpoint,
+        read_checkpoint_metadata,
+        resolve_policy_checkpoint,
+    )
+
+    ckpt_path = resolve_policy_checkpoint(ckpt_path)
+    if is_release_checkpoint(ckpt_path):
+        return read_checkpoint_metadata(ckpt_path, stage="stage2")
     trainer_state_path = ckpt_path / "trainer_state.json"
     if not trainer_state_path.exists():
         return None
     payload = json.loads(trainer_state_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"Expected JSON object in checkpoint trainer state: {trainer_state_path}")
-    return payload
+    from dreamfree.config_names import normalize_checkpoint_metadata
+
+    return normalize_checkpoint_metadata(payload)
 
 
 def _is_dreamfree_stage2_checkpoint(metadata: dict[str, Any] | None) -> bool:
@@ -79,7 +90,7 @@ def _require_dreamfree_stage2_checkpoint(metadata: dict[str, Any] | None, *, lab
         return
     checkpoint_type = None if metadata is None else metadata.get("checkpoint_type")
     raise ValueError(
-        f"{label} requires `ckpt` to be a DreamFree Stage 2 checkpoint ({sorted(SUPPORTED_DREAMFREE_STAGE2_CHECKPOINT_TYPES)!r}), got {checkpoint_type!r}."
+        f"{label} requires `checkpoint_path` to be a DreamFree Stage 2 checkpoint ({sorted(SUPPORTED_DREAMFREE_STAGE2_CHECKPOINT_TYPES)!r}), got {checkpoint_type!r}."
     )
 
 
@@ -151,17 +162,17 @@ def _resolve_dataset_stats_path(
         return explicit
     if checkpoint_metadata is not None:
         metadata_stats = _resolve_optional_string(
-            checkpoint_metadata.get("dataset", {}).get("pretrained_norm_stats")
+            checkpoint_metadata.get("dataset", {}).get("dataset_stats_path")
         )
         if metadata_stats is not None:
             metadata_path = _resolve_path(metadata_stats, base=PROJECT_ROOT)
             if not metadata_path.exists():
                 raise FileNotFoundError(
-                    f"DreamFree Stage 2 checkpoint metadata references missing `dataset.pretrained_norm_stats`: {metadata_path}"
+                    f"DreamFree Stage 2 checkpoint metadata references missing `dataset.dataset_stats_path`: {metadata_path}"
                 )
             if not metadata_path.is_file():
                 raise FileNotFoundError(
-                    f"DreamFree Stage 2 checkpoint metadata `dataset.pretrained_norm_stats` is not a file: {metadata_path}"
+                    f"DreamFree Stage 2 checkpoint metadata `dataset.dataset_stats_path` is not a file: {metadata_path}"
                 )
             _validate_dataset_stats_compatible(
                 metadata_path, checkpoint_metadata=checkpoint_metadata

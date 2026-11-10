@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import re
 import shutil
 from dataclasses import asdict
@@ -10,7 +11,8 @@ import torch
 from accelerate import Accelerator
 from safetensors.torch import save_file as save_safetensors
 
-from dreamfree.data.stage2 import _parse_dataset_dirs, resolve_stage2_action_horizon
+from dreamfree.data.action_processing import _parse_dataset_dirs, resolve_stage2_action_horizon
+from dreamfree.models import action_history
 from dreamfree.models.action_config import _parse_optional_int, _require_dict
 from dreamfree.models.action_training import (
     ActionTrainingModel,
@@ -38,10 +40,49 @@ from dreamfree.training.stage2.constants import (
 )
 from dreamfree.training.stage2.validation import (
     _check_equal,
-    _dreamfree_stage2_visual_preprocess_id,
     _is_dreamfree_stage2_droid_dataset,
     _metadata_path_identity,
 )
+
+
+def prepare_release_initialization(cfg: Stage2Config) -> tuple[Path, dict] | None:
+    """Initialize a new Stage 2 run from released weights, never optimizer state."""
+    from dreamfree.models.release import (
+        is_release_checkpoint,
+        read_checkpoint_metadata,
+        resolve_policy_checkpoint,
+    )
+
+    if not cfg.init_checkpoint:
+        return None
+    if cfg.resume:
+        raise ValueError(
+            "init_checkpoint and resume are mutually exclusive: release fine-tuning starts a new optimizer and step counter."
+        )
+    path = resolve_policy_checkpoint(cfg.init_checkpoint)
+    if not is_release_checkpoint(path):
+        raise ValueError(
+            "init_checkpoint requires a DreamFree release root or stage2 directory; use resume for a native training checkpoint."
+        )
+    metadata = read_checkpoint_metadata(path, stage="stage2")
+    cfg.stage1_checkpoint = metadata["source_stage1_checkpoint"]
+    if not cfg.dataset_stats_path:
+        cfg.dataset_stats_path = metadata["dataset"]["dataset_stats_path"]
+    cfg.skip_dit_load_from_pretrain = True
+    return path, metadata
+
+
+def validate_release_initialization(
+    cfg: Stage2Config, metadata: dict, *, source: Stage1StudentSource
+) -> None:
+    # Fine-tuning may change data locations; model and conditioning contracts must match.
+    metadata = copy.deepcopy(metadata)
+    metadata["dataset"].update(
+        dataset_dirs=_parse_dataset_dirs(cfg.dataset_dirs),
+        dataset_stats_path=str(cfg.dataset_stats_path),
+        text_embedding_cache_dir=str(cfg.text_embedding_cache_dir),
+    )
+    validate_dreamfree_stage2_checkpoint_metadata(cfg, metadata, source=source)
 
 
 def build_dreamfree_stage2_checkpoint_metadata(
@@ -83,17 +124,6 @@ def build_dreamfree_stage2_checkpoint_metadata(
         "checkpoint_type": DREAMFREE_STAGE2_CHECKPOINT_TYPE,
         "checkpoint_version": DREAMFREE_STAGE2_CHECKPOINT_VERSION,
         "global_step": int(global_step),
-        **(
-            {
-                "visual_preprocess_id": _dreamfree_stage2_visual_preprocess_id(cfg),
-                "source_stage1_visual_preprocess_id": source_meta.get("visual_preprocess_id"),
-                "source_stage0_visual_preprocess_id": source_meta.get(
-                    "source_stage0_visual_preprocess_id"
-                ),
-            }
-            if _dreamfree_stage2_visual_preprocess_id(cfg) is not None
-            else {}
-        ),
         "config": asdict(cfg),
         "source_stage1_checkpoint": model.source_stage1_checkpoint,
         "source_stage1_global_step": int(model.student.global_step),
@@ -129,18 +159,18 @@ def build_dreamfree_stage2_checkpoint_metadata(
         "dataset": {
             "name": str(cfg.dataset_name),
             "dataset_dirs": dataset_dirs,
-            "pretrained_norm_stats": str(cfg.pretrained_norm_stats),
+            "dataset_stats_path": str(cfg.dataset_stats_path),
             "text_embedding_cache_dir": str(cfg.text_embedding_cache_dir),
-            "context_len": int(cfg.context_len),
+            "context_len": int(cfg.tokenizer_max_len),
             "num_frames": int(cfg.num_frames),
             "action_video_freq_ratio": int(cfg.action_video_freq_ratio),
             "action_horizon": resolve_stage2_action_horizon(cfg),
             "video_size": [int(cfg.height), int(cfg.width)],
             "action_dim": int(cfg.action_dim),
             "proprio_dim": int(cfg.proprio_dim),
-            "concat_multi_camera": str(cfg.concat_multi_camera),
+            "camera_layout": str(cfg.camera_layout),
             "use_cached_latents": bool(cfg.use_cached_latents),
-            "stage2_latent_cache_dir": cfg.stage2_latent_cache_dir,
+            "video_latent_cache_dir": cfg.video_latent_cache_dir,
         },
         "student": {
             "train_mode": "frozen",
@@ -185,7 +215,7 @@ def build_dreamfree_stage2_checkpoint_metadata(
             "token_policy": "all_readout_tokens",
             "concat_order": str(cfg.student_context_concat_order),
             "context_norm": str(cfg.student_context_norm),
-            "text_context_length": int(cfg.context_len),
+            "text_context_length": int(cfg.tokenizer_max_len),
             "query_prefix_tokens": shape_meta.get("query_prefix_tokens", 1),
             "final_kv_contract": "text_plus_student_readout_only",
         },
@@ -207,44 +237,37 @@ def build_dreamfree_stage2_checkpoint_metadata(
             "query_prefix_tokens": shape_meta.get("query_prefix_tokens"),
         },
     }
+    from dreamfree.data import yam
+
+    if cfg.dataset_name in yam.DATASET_NAMES:
+        metadata["abc_contract"] = yam.checkpoint_contract(cfg)
+    action_history.add_checkpoint_metadata(metadata, cfg)
     return metadata
 
 
 def validate_dreamfree_stage2_checkpoint_metadata(
     cfg: Stage2Config, metadata: dict[str, Any], *, source: Stage1StudentSource
 ) -> None:
+    action_history.validate_checkpoint(metadata, cfg)
     mismatches: list[str] = []
+    checkpoint_type, checkpoint_version = action_history.checkpoint_identity(cfg)
     _check_equal(
         mismatches,
         "checkpoint_type",
         metadata.get("checkpoint_type"),
-        DREAMFREE_STAGE2_CHECKPOINT_TYPE,
+        checkpoint_type,
     )
     _check_equal(
         mismatches,
         "checkpoint_version",
         metadata.get("checkpoint_version"),
-        DREAMFREE_STAGE2_CHECKPOINT_VERSION,
+        checkpoint_version,
     )
-    expected_visual_id = _dreamfree_stage2_visual_preprocess_id(cfg)
-    if expected_visual_id is not None:
+    from dreamfree.data import yam
+
+    if cfg.dataset_name in yam.DATASET_NAMES:
         _check_equal(
-            mismatches,
-            "visual_preprocess_id",
-            metadata.get("visual_preprocess_id"),
-            expected_visual_id,
-        )
-        _check_equal(
-            mismatches,
-            "source_stage1_visual_preprocess_id",
-            metadata.get("source_stage1_visual_preprocess_id"),
-            expected_visual_id,
-        )
-        _check_equal(
-            mismatches,
-            "source_stage0_visual_preprocess_id",
-            metadata.get("source_stage0_visual_preprocess_id"),
-            expected_visual_id,
+            mismatches, "abc_contract", metadata.get("abc_contract"), yam.checkpoint_contract(cfg)
         )
     metadata_stage1_checkpoint = metadata.get("source_stage1_checkpoint")
     expected_stage1_checkpoint = str(source.checkpoint_dir)
@@ -275,9 +298,9 @@ def validate_dreamfree_stage2_checkpoint_metadata(
     )
     _check_equal(
         mismatches,
-        "dataset.pretrained_norm_stats",
-        dataset.get("pretrained_norm_stats"),
-        str(cfg.pretrained_norm_stats),
+        "dataset.dataset_stats_path",
+        dataset.get("dataset_stats_path"),
+        str(cfg.dataset_stats_path),
     )
     _check_equal(
         mismatches,
@@ -286,7 +309,10 @@ def validate_dreamfree_stage2_checkpoint_metadata(
         str(cfg.text_embedding_cache_dir),
     )
     _check_equal(
-        mismatches, "dataset.context_len", int(dataset.get("context_len", -1)), int(cfg.context_len)
+        mismatches,
+        "dataset.context_len",
+        int(dataset.get("context_len", -1)),
+        int(cfg.tokenizer_max_len),
     )
     _check_equal(
         mismatches, "dataset.num_frames", int(dataset.get("num_frames", -1)), int(cfg.num_frames)
@@ -320,9 +346,9 @@ def validate_dreamfree_stage2_checkpoint_metadata(
     )
     _check_equal(
         mismatches,
-        "dataset.concat_multi_camera",
-        dataset.get("concat_multi_camera"),
-        str(cfg.concat_multi_camera),
+        "dataset.camera_layout",
+        dataset.get("camera_layout"),
+        str(cfg.camera_layout),
     )
     student = _require_dict(
         metadata.get("student"), label="DreamFree Stage 2 checkpoint metadata.student"
@@ -615,7 +641,7 @@ def _prune_dreamfree_stage2_checkpoints(
     for _, path in stale:
         shutil.rmtree(path)
         removed.append(path)
-        logger.info("[ckpt] removed old %s checkpoint %s", stage_label, path)
+        logger.info("[checkpoint] removed old %s checkpoint %s", stage_label, path)
     return removed
 
 
@@ -667,7 +693,7 @@ def save_dreamfree_stage2_checkpoint(
                 checkpoint_dir / "optim.pt",
                 {"optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict()},
             )
-        logger.info("[ckpt] saved %s checkpoint to %s", stage_label, checkpoint_dir)
+        logger.info("[checkpoint] saved %s checkpoint to %s", stage_label, checkpoint_dir)
         _prune_dreamfree_stage2_checkpoints(cfg, stage_label=stage_label)
     accelerator.wait_for_everyone()
     return checkpoint_dir if accelerator.is_main_process else None

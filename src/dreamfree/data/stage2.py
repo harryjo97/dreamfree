@@ -1,53 +1,59 @@
-"""Stage 2 privileged-teacher action pretraining trainer."""
+"""Stage 2 live/cached datasets, episode splits, and dataloaders.
+
+Dataset geometry and normalization live in action_processing; cache checks in
+action_cache; model-facing batch preparation in action_batch."""
 
 from __future__ import annotations
 
 import hashlib
 import importlib.util
-import json
 import random
-import time
 import traceback
-from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Optional, Sequence
 
 import numpy as np
 import torch
-import torchvision.transforms as TV
 import torchvision.transforms.functional as transforms_F
 from omegaconf import OmegaConf
-from safetensors import safe_open
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data._utils.collate import default_collate
 
+from dreamfree.data import yam
+from dreamfree.data.action_batch import build_stage2_cached_inputs as build_stage2_cached_inputs
+from dreamfree.data.action_cache import (
+    _stage2_latent_cache_expected_contract,
+    _stage2_text_cache_suffix,
+)
+from dreamfree.data.action_cache import (
+    validate_droid_stage2_latent_cache_metadata as validate_droid_stage2_latent_cache_metadata,
+)
+from dreamfree.data.action_processing import (
+    DROID_GRIPPER_POSITION_KEY,
+    DROID_JOINT_POSITION_KEY,
+    ROBOCASA_DREAMZERO_448_CONCAT_MULTI_CAMERA,
+    ROBOCASA_DREAMZERO_CONCAT_MULTI_CAMERA,
+    _build_stage2_processor,
+    _build_stage2_shape_meta,
+    _droid_modality_range,
+    _is_stage2_droid_dataset_name,
+    _load_stage2_dataset_stats,
+    _parse_dataset_dirs,
+    resolve_stage2_action_horizon,
+)
 from dreamfree.data.dataset_utils import CenterCrop, Normalize, ResizeSmallestSideAspectPreserving
 from dreamfree.data.lerobot.cached_latent_dataset import (
-    DROID_DREAMZERO_OVERLAY_CACHE_KIND,
-    DROID_DREAMZERO_REQUIRED_TENSOR_DIMS,
     binarize_droid_gripper_action_history,
-    is_droid_dreamzero_runtime_horizon_cache,
-    stage2_latent_cache_expected_contract,
-    stage2_text_cache_suffix_for_family,
-    validate_droid_dreamzero_overlay_cache_file,
-    validate_stage2_latent_cache_file,
-    validate_stage2_latent_tensor_contract,
 )
-from dreamfree.data.lerobot.lerobot.datasets.compute_stats import aggregate_stats
 from dreamfree.data.lerobot.lerobot.lerobot_dataset import (
     LeRobotDatasetMetadata,
     MultiLeRobotDataset,
 )
-from dreamfree.data.lerobot.processors.robot import DreamFreeProcessor
-from dreamfree.data.lerobot.transforms.action_state_merger import ConcatLeftAlign
-from dreamfree.data.lerobot.transforms.image import ToTensor
-from dreamfree.data.lerobot.utils.normalizer import load_dataset_stats_from_json
-from dreamfree.data.robocasa_visual import required_robocasa_visual_preprocess_id
+from dreamfree.data.robocasa_visual import ROBOCASA_RAW_CAMERA_SIZE, compose_robocasa_dreamzero
 from dreamfree.data.sampling import seed_worker
 from dreamfree.data.text_cache import DEFAULT_PROMPT, validate_text_cache
 from dreamfree.data.video import resolve_episode_task_candidates
-from dreamfree.models.wan22.i2v_condition import WAN22_A14B_I2V_CONDITION_LATENTS_KEY
 from dreamfree.training.stage0.constants import (
     DROID_GRID_CONCAT_MULTI_CAMERA,
     DROID_GRID_HEIGHT,
@@ -56,40 +62,9 @@ from dreamfree.training.stage0.constants import (
 from dreamfree.training.stage2.config import Stage2Config
 from dreamfree.utils.logging_config import get_logger
 
-logger = get_logger(__name__)
-ROBOTWIN_CONCAT_MULTI_CAMERA = "robotwin"
-HORIZONTAL_CONCAT_MULTI_CAMERA = "horizontal"
-ROBOCASA_DREAMZERO_352_CONCAT_MULTI_CAMERA = "robocasa_dreamzero_352"
-ROBOCASA_DREAMZERO_448_CONCAT_MULTI_CAMERA = "robocasa_dreamzero_448"
-ROBOCASA_DREAMZERO_CONCAT_MULTI_CAMERA = ROBOCASA_DREAMZERO_352_CONCAT_MULTI_CAMERA
-ROBOCASA_STAGE2_DATASET_ALIASES = frozenset({"robocasa"})
-ROBOCASA_STAGE2_448_DATASET_ALIASES = frozenset(("robocasa_cosmos_success_448",))
-DROID_STAGE2_DATASET_ALIASES = frozenset({"droid"})
-ROBOCASA_STAGE2_HEIGHT = 352
-ROBOCASA_STAGE2_WIDTH = 352
-ROBOCASA_STAGE2_448_HEIGHT = 448
-ROBOCASA_STAGE2_448_WIDTH = 448
-ROBOCASA_STAGE2_ACTION_DIM = 7
-ROBOCASA_STAGE2_PROPRIO_DIM = 9
-DROID_STAGE2_HEIGHT = DROID_GRID_HEIGHT
-DROID_STAGE2_WIDTH = DROID_GRID_WIDTH
-DROID_STAGE2_ACTION_DIM = 8
-DROID_STAGE2_PROPRIO_DIM = 8
-DROID_STAGE2_ACTION_HORIZON = 24
-DROID_DREAMZERO_ACTION_CONTRACT = "droid_dreamzero_rel_joint_abs_gripper_q99_v1"
-DROID_DREAMZERO_RELATIVE_STATS_FILE = "relative_stats_dreamzero.json"
-DROID_JOINT_POSITION_KEY = "joint_position"
-DROID_GRIPPER_POSITION_KEY = "gripper_position"
-STAGE2_REQUIRED_CACHE_KEYS = ("context", "mask")
+logger = get_logger("dreamfree.data.stage2")
 DEFAULT_SPLIT_SEED = 42
 MAX_GETITEM_ATTEMPT = 5
-
-
-def _parse_dataset_dirs(value: str) -> list[str]:
-    dirs = [part.strip() for part in str(value).split(",") if part.strip()]
-    if not dirs:
-        raise ValueError("`dataset_dirs` must contain at least one directory.")
-    return dirs
 
 
 def _stage2_metadata_episode_indices(meta: LeRobotDatasetMetadata) -> list[int]:
@@ -113,23 +88,23 @@ def _select_stage2_episode_indices_for_split(
     meta: LeRobotDatasetMetadata,
     *,
     split: str,
-    val_set_proportion: float,
-    test_set_proportion: float,
+    val_fraction: float,
+    test_fraction: float,
     seed: int = DEFAULT_SPLIT_SEED,
     allowed_episode_indices: Sequence[int] | None = None,
 ) -> list[int]:
     split_name = str(split).strip().lower()
     if split_name not in {"train", "val", "test"}:
         raise ValueError(f"Stage 2 dataset split must be one of train/val/test, got {split!r}.")
-    val_prop = float(val_set_proportion)
-    test_prop = float(test_set_proportion)
+    val_prop = float(val_fraction)
+    test_prop = float(test_fraction)
     if val_prop < 0.0 or test_prop < 0.0:
         raise ValueError(
-            f"val_set_proportion and test_set_proportion must be non-negative, got val={val_set_proportion} test={test_set_proportion}."
+            f"val_fraction and test_fraction must be non-negative, got val={val_fraction} test={test_fraction}."
         )
     if val_prop + test_prop >= 1.0:
         raise ValueError(
-            f"val_set_proportion + test_set_proportion must be < 1.0, got {val_prop} + {test_prop}."
+            f"val_fraction + test_fraction must be < 1.0, got {val_prop} + {test_prop}."
         )
     known_episode_indices = _stage2_metadata_episode_indices(meta)
     if allowed_episode_indices is None:
@@ -183,678 +158,6 @@ def _parse_path_list(value: Any, *, label: str) -> list[Path]:
     return paths
 
 
-def _normalize_stage2_dataset_name(value: Any) -> str:
-    return str(value).strip().lower().replace("-", "_")
-
-
-def _is_stage2_robotwin_dataset_name(value):
-    return value == "robotwin"
-
-
-def _is_stage2_robocasa_dataset_name(value):
-    return value == "robocasa"
-
-
-def _stage2_robocasa_layout_spec(dataset_name: Any) -> dict[str, int | str]:
-    name = _normalize_stage2_dataset_name(dataset_name)
-    if name in ROBOCASA_STAGE2_448_DATASET_ALIASES:
-        return {
-            "concat_multi_camera": ROBOCASA_DREAMZERO_448_CONCAT_MULTI_CAMERA,
-            "height": ROBOCASA_STAGE2_448_HEIGHT,
-            "width": ROBOCASA_STAGE2_448_WIDTH,
-            "action_dim": ROBOCASA_STAGE2_ACTION_DIM,
-            "proprio_dim": ROBOCASA_STAGE2_PROPRIO_DIM,
-        }
-    return {
-        "concat_multi_camera": ROBOCASA_DREAMZERO_CONCAT_MULTI_CAMERA,
-        "height": ROBOCASA_STAGE2_HEIGHT,
-        "width": ROBOCASA_STAGE2_WIDTH,
-        "action_dim": ROBOCASA_STAGE2_ACTION_DIM,
-        "proprio_dim": ROBOCASA_STAGE2_PROPRIO_DIM,
-    }
-
-
-def _is_stage2_droid_dataset_name(value):
-    return value == "droid"
-
-
-def _parse_optional_stage2_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, int):
-        return int(value)
-    text = str(value).strip()
-    if text in {"", "null", "None", "none"}:
-        return None
-    return int(text)
-
-
-def resolve_stage2_action_horizon(cfg: Any) -> int:
-    explicit_horizon = _parse_optional_stage2_int(getattr(cfg, "action_horizon", None))
-    if explicit_horizon is not None:
-        if explicit_horizon <= 0:
-            raise ValueError(f"action_horizon must be positive, got {explicit_horizon}.")
-        return int(explicit_horizon)
-    if _is_stage2_droid_dataset_name(getattr(cfg, "dataset_name", "")):
-        return DROID_STAGE2_ACTION_HORIZON
-    return int(getattr(cfg, "num_frames")) - 1
-
-
-def _is_stage2_libero_dataset_name(value):
-    return value == "libero"
-
-
-def _validate_cache_payload(path: Path, *, context_len: int, text_dim: int) -> None:
-    payload = torch.load(path, map_location="cpu")
-    validate_text_cache(payload, path)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Stage 2 text cache must be a dict, got {type(payload)} in {path}")
-    missing = [key for key in STAGE2_REQUIRED_CACHE_KEYS if key not in payload]
-    if missing:
-        raise ValueError(f"Stage 2 text cache is missing keys {missing}: {path}")
-    context = payload["context"]
-    mask = payload["mask"]
-    if not isinstance(context, torch.Tensor) or tuple(context.shape) != (context_len, text_dim):
-        raise ValueError(
-            f"Cached `context` must have shape ({context_len}, {text_dim}), got {tuple(getattr(context, 'shape', ()))} in {path}"
-        )
-    if not isinstance(mask, torch.Tensor) or tuple(mask.shape) != (context_len,):
-        raise ValueError(
-            f"Cached `mask` must have shape ({context_len},), got {tuple(getattr(mask, 'shape', ()))} in {path}"
-        )
-
-
-def _stage2_latent_cache_expected_contract(cfg: Any) -> dict[str, Any]:
-    contract = stage2_latent_cache_expected_contract(
-        video_model_family=str(getattr(cfg, "video_model_family", "wan22_ti2v_5b")),
-        model_id=getattr(cfg, "model_id", None),
-        height=int(getattr(cfg, "height")),
-        width=int(getattr(cfg, "width")),
-        num_frames=int(getattr(cfg, "num_frames")),
-        action_video_freq_ratio=int(getattr(cfg, "action_video_freq_ratio")),
-        action_horizon=resolve_stage2_action_horizon(cfg),
-        require_action_horizon_metadata=False,
-    )
-    visual_preprocess_id = required_robocasa_visual_preprocess_id(
-        dataset_name=getattr(cfg, "dataset_name", ""),
-        concat_multi_camera=getattr(cfg, "concat_multi_camera", ""),
-        height=getattr(cfg, "height", -1),
-        width=getattr(cfg, "width", -1),
-        video_model_family=getattr(cfg, "video_model_family", ""),
-    )
-    if visual_preprocess_id is not None:
-        contract["visual_preprocess_id"] = visual_preprocess_id
-        contract["concat_layout"] = str(getattr(cfg, "concat_multi_camera"))
-        if contract["video_model_family"] == "wan22_i2v_a14b":
-            contract["require_i2v_first_latent_equality"] = True
-    return contract
-
-
-def _validate_stage2_latent_cache_contract(path: Path, cfg: Any) -> None:
-    validate_stage2_latent_cache_file(
-        path, expected=_stage2_latent_cache_expected_contract(cfg), stage_label="Stage 2"
-    )
-
-
-def validate_droid_stage2_latent_cache_metadata(
-    path: Path, cfg: Any, *, stage_label: str = "Stage 2"
-) -> None:
-    with safe_open(str(path), framework="pt", device="cpu") as handle:
-        meta = dict(handle.metadata() or {})
-        tensor_shapes = {key: tuple(handle.get_slice(key).get_shape()) for key in handle.keys()}
-    if str(meta.get("overlay_cache_kind", "")).strip() == DROID_DREAMZERO_OVERLAY_CACHE_KIND:
-        validate_droid_dreamzero_overlay_cache_file(
-            path, expected=_stage2_latent_cache_expected_contract(cfg), stage_label=stage_label
-        )
-    expected = {
-        "concat_layout": DROID_GRID_CONCAT_MULTI_CAMERA,
-        "action_dim": str(int(getattr(cfg, "action_dim"))),
-        "action_contract": DROID_DREAMZERO_ACTION_CONTRACT,
-        "norm_mode": "q01/q99",
-    }
-    mismatches = [
-        f"{key}: actual={meta.get(key)!r} expected={value!r}"
-        for (key, value) in expected.items()
-        if str(meta.get(key)) != value
-    ]
-    runtime_horizon_cache = is_droid_dreamzero_runtime_horizon_cache(
-        metadata=meta, tensor_shapes=tensor_shapes, sample_count=int(meta.get("num_samples", -1))
-    )
-    expected_action_horizon = str(resolve_stage2_action_horizon(cfg))
-    if (
-        not runtime_horizon_cache
-        and meta.get("action_horizon") is not None
-        and (str(meta.get("action_horizon")) != expected_action_horizon)
-    ):
-        mismatches.append(
-            f"action_horizon: actual={meta.get('action_horizon')!r} expected={expected_action_horizon!r}"
-        )
-    dataset_kind = str(meta.get("dataset_kind", "")).strip().lower()
-    if dataset_kind and dataset_kind != "droid":
-        mismatches.append(f"dataset_kind: actual={meta.get('dataset_kind')!r} expected='droid'")
-    state_dim = meta.get("state_dim", meta.get("proprio_dim"))
-    if str(state_dim) != str(int(getattr(cfg, "proprio_dim"))):
-        mismatches.append(
-            f"state_dim: actual={state_dim!r} expected={int(getattr(cfg, 'proprio_dim'))!r}"
-        )
-    for tensor_key, tensor_dim in DROID_DREAMZERO_REQUIRED_TENSOR_DIMS.items():
-        shape = tensor_shapes.get(tensor_key)
-        if shape is None:
-            mismatches.append(f"{tensor_key}: missing")
-        elif len(shape) != 2 or int(shape[-1]) != tensor_dim:
-            mismatches.append(
-                f"{tensor_key}: actual_shape={shape!r} expected_last_dim={tensor_dim}"
-            )
-    if mismatches:
-        raise ValueError(
-            f"{stage_label} DROID latent cache metadata mismatch in {path}: "
-            + "; ".join(mismatches)
-        )
-
-
-def _validate_stage2_input_latents_contract(
-    latents: torch.Tensor, cfg: Any, *, stage_label: str = "Stage 2"
-) -> None:
-    validate_stage2_latent_tensor_contract(
-        latents, expected=_stage2_latent_cache_expected_contract(cfg), stage_label=stage_label
-    )
-
-
-def _stage2_text_cache_suffix(cfg: Any) -> str:
-    return stage2_text_cache_suffix_for_family(
-        str(getattr(cfg, "video_model_family", "wan22_ti2v_5b"))
-    )
-
-
-def _normalize_torch_device(device: Any) -> torch.device | None:
-    if device is None:
-        return None
-    if isinstance(device, torch.device):
-        return device
-    return torch.device(device)
-
-
-def _maybe_cuda_synchronize(device: Any) -> None:
-    torch_device = _normalize_torch_device(device)
-    if torch_device is None or torch_device.type != "cuda":
-        return
-    torch.cuda.synchronize(torch_device)
-
-
-class _TimingRecorder:
-    def __init__(self, *, enabled: bool, device: Any):
-        self.enabled = bool(enabled)
-        self.device = _normalize_torch_device(device)
-        self.values: dict[str, float] = {}
-
-    def record(self, key: str):
-        if not self.enabled:
-            return nullcontext()
-        return _TimedSection(self, key)
-
-    def add(self, key: str, value: float) -> None:
-        if not self.enabled:
-            return
-        self.values[key] = self.values.get(key, 0.0) + float(value)
-
-
-class _TimedSection:
-    def __init__(self, recorder: _TimingRecorder, key: str):
-        self.recorder = recorder
-        self.key = key
-        self.start: float | None = None
-
-    def __enter__(self) -> None:
-        _maybe_cuda_synchronize(self.recorder.device)
-        self.start = time.perf_counter()
-        return None
-
-    def __exit__(self, exc_type, exc, tb) -> bool:
-        del exc_type, exc, tb
-        _maybe_cuda_synchronize(self.recorder.device)
-        end = time.perf_counter()
-        if self.start is not None:
-            self.recorder.add(self.key, end - self.start)
-        return False
-
-
-def _build_robotwin_shape_meta(cfg: Stage2Config) -> dict[str, Any]:
-    return {
-        "images": [
-            {"key": "cam_high", "raw_shape": [3, 480, 640], "shape": [3, 240, 320]},
-            {"key": "cam_left_wrist", "raw_shape": [3, 480, 640], "shape": [3, 240, 320]},
-            {"key": "cam_right_wrist", "raw_shape": [3, 480, 640], "shape": [3, 240, 320]},
-        ],
-        "action": [
-            {"key": "default", "raw_shape": int(cfg.action_dim), "shape": int(cfg.action_dim)}
-        ],
-        "state": [
-            {"key": "default", "raw_shape": int(cfg.proprio_dim), "shape": int(cfg.proprio_dim)}
-        ],
-    }
-
-
-def _build_libero_shape_meta(cfg: Stage2Config) -> dict[str, Any]:
-    return {
-        "images": [
-            {"key": "image", "raw_shape": [3, 512, 512], "shape": [3, 224, 224]},
-            {"key": "wrist_image", "raw_shape": [3, 512, 512], "shape": [3, 224, 224]},
-        ],
-        "action": [
-            {"key": "default", "raw_shape": int(cfg.action_dim), "shape": int(cfg.action_dim)}
-        ],
-        "state": [
-            {"key": "default", "raw_shape": int(cfg.proprio_dim), "shape": int(cfg.proprio_dim)}
-        ],
-    }
-
-
-def _build_robocasa_shape_meta(cfg: Stage2Config) -> dict[str, Any]:
-    return {
-        "images": [
-            {"key": "agentview_left", "raw_shape": [3, 224, 224], "shape": [3, 224, 224]},
-            {"key": "agentview_right", "raw_shape": [3, 224, 224], "shape": [3, 224, 224]},
-            {"key": "wrist", "raw_shape": [3, 224, 224], "shape": [3, 224, 224]},
-        ],
-        "action": [
-            {"key": "default", "raw_shape": int(cfg.action_dim), "shape": int(cfg.action_dim)}
-        ],
-        "state": [
-            {"key": "default", "raw_shape": int(cfg.proprio_dim), "shape": int(cfg.proprio_dim)}
-        ],
-    }
-
-
-def _load_droid_modality_config(root: Path) -> dict[str, Any]:
-    path = Path(root) / "meta" / "modality.json"
-    if not path.exists():
-        raise FileNotFoundError(f"DROID dataset requires DreamZero modality metadata: {path}")
-    with path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-    if not isinstance(payload, dict):
-        raise ValueError(f"DROID modality metadata must be a JSON object: {path}")
-    return payload
-
-
-def _droid_modality_range(root: Path, modality: str, key: str) -> tuple[int, int]:
-    payload = _load_droid_modality_config(root)
-    modality_payload = payload.get(modality)
-    if not isinstance(modality_payload, dict) or key not in modality_payload:
-        raise KeyError(
-            f"DROID modality metadata missing {modality}.{key} in {Path(root) / 'meta' / 'modality.json'}"
-        )
-    item = modality_payload[key]
-    if not isinstance(item, dict) or "start" not in item or "end" not in item:
-        raise ValueError(
-            f"DROID modality metadata for {modality}.{key} must define start/end: {item!r}"
-        )
-    (start, end) = (int(item["start"]), int(item["end"]))
-    if start < 0 or end <= start:
-        raise ValueError(
-            f"Invalid DROID modality range for {modality}.{key}: start={start}, end={end}"
-        )
-    return (start, end)
-
-
-def _build_droid_shape_meta(cfg: Stage2Config) -> dict[str, Any]:
-    return {
-        "images": [
-            {"key": "exterior_image_1_left", "raw_shape": [3, 180, 320], "shape": [3, 180, 320]},
-            {"key": "exterior_image_2_left", "raw_shape": [3, 180, 320], "shape": [3, 180, 320]},
-            {"key": "wrist_image_left", "raw_shape": [3, 180, 320], "shape": [3, 180, 320]},
-        ],
-        "action": [
-            {
-                "key": DROID_JOINT_POSITION_KEY,
-                "raw_shape": 7,
-                "shape": 7,
-                "source_key": "action",
-                "source_slice": (14, 21),
-                "relative_to_state_key": DROID_JOINT_POSITION_KEY,
-                "state_source_slice": (7, 14),
-            },
-            {
-                "key": DROID_GRIPPER_POSITION_KEY,
-                "raw_shape": 1,
-                "shape": 1,
-                "source_key": "action",
-                "source_slice": (12, 13),
-            },
-        ],
-        "state": [
-            {
-                "key": DROID_JOINT_POSITION_KEY,
-                "raw_shape": 7,
-                "shape": 7,
-                "source_key": "observation.state",
-                "source_slice": (7, 14),
-            },
-            {
-                "key": DROID_GRIPPER_POSITION_KEY,
-                "raw_shape": 1,
-                "shape": 1,
-                "source_key": "observation.state",
-                "source_slice": (6, 7),
-            },
-        ],
-    }
-
-
-def _build_stage2_shape_meta(cfg: Stage2Config) -> dict[str, Any]:
-    dataset_name = _normalize_stage2_dataset_name(cfg.dataset_name)
-    if _is_stage2_libero_dataset_name(dataset_name):
-        return _build_libero_shape_meta(cfg)
-    if _is_stage2_robotwin_dataset_name(dataset_name):
-        return _build_robotwin_shape_meta(cfg)
-    if _is_stage2_robocasa_dataset_name(dataset_name):
-        return _build_robocasa_shape_meta(cfg)
-    if _is_stage2_droid_dataset_name(dataset_name):
-        return _build_droid_shape_meta(cfg)
-    raise ValueError(f"Unsupported Stage 2 dataset_name={cfg.dataset_name!r}.")
-
-
-def _build_robotwin_processor(cfg: Stage2Config) -> DreamFreeProcessor:
-    shape_meta = _build_robotwin_shape_meta(cfg)
-    resize = TV.Resize(size=[240, 320])
-    return DreamFreeProcessor(
-        shape_meta=shape_meta,
-        num_obs_steps=int(cfg.num_frames),
-        num_output_cameras=3,
-        action_output_dim=int(cfg.action_dim),
-        proprio_output_dim=int(cfg.proprio_dim),
-        action_state_transforms=None,
-        use_stepwise_action_norm=False,
-        norm_default_mode="z-score",
-        norm_exception_mode=None,
-        action_state_merger=ConcatLeftAlign(),
-        train_transforms=[ToTensor(), resize],
-        val_transforms=[ToTensor(), resize],
-        drop_high_level_prob=1.0,
-        use_zh_instruction=False,
-        tokenizer=None,
-        delta_action_dim_mask=None,
-    )
-
-
-def _build_libero_processor(cfg: Stage2Config) -> DreamFreeProcessor:
-    shape_meta = _build_libero_shape_meta(cfg)
-    resize = TV.Resize(size=[224, 224])
-    return DreamFreeProcessor(
-        shape_meta=shape_meta,
-        num_obs_steps=int(cfg.num_frames),
-        num_output_cameras=2,
-        action_output_dim=int(cfg.action_dim),
-        proprio_output_dim=int(cfg.proprio_dim),
-        action_state_transforms=None,
-        use_stepwise_action_norm=False,
-        norm_default_mode="min/max",
-        norm_exception_mode=None,
-        action_state_merger=ConcatLeftAlign(),
-        train_transforms=[ToTensor(), resize],
-        val_transforms=[ToTensor(), resize],
-        drop_high_level_prob=1.0,
-        use_zh_instruction=False,
-        tokenizer=None,
-        delta_action_dim_mask={"default": [True, True, True, True, True, True, False]},
-    )
-
-
-def _build_robocasa_processor(cfg: Stage2Config) -> DreamFreeProcessor:
-    shape_meta = _build_robocasa_shape_meta(cfg)
-    resize = TV.Resize(size=[224, 224])
-    return DreamFreeProcessor(
-        shape_meta=shape_meta,
-        num_obs_steps=int(cfg.num_frames),
-        num_output_cameras=3,
-        action_output_dim=int(cfg.action_dim),
-        proprio_output_dim=int(cfg.proprio_dim),
-        action_state_transforms=None,
-        use_stepwise_action_norm=False,
-        norm_default_mode="z-score",
-        norm_exception_mode=None,
-        action_state_merger=ConcatLeftAlign(),
-        train_transforms=[ToTensor(), resize],
-        val_transforms=[ToTensor(), resize],
-        drop_high_level_prob=1.0,
-        use_zh_instruction=False,
-        tokenizer=None,
-        delta_action_dim_mask=None,
-    )
-
-
-def _build_droid_processor(cfg: Stage2Config) -> DreamFreeProcessor:
-    shape_meta = _build_droid_shape_meta(cfg)
-    return DreamFreeProcessor(
-        shape_meta=shape_meta,
-        num_obs_steps=int(cfg.num_frames),
-        num_output_cameras=3,
-        action_output_dim=int(cfg.action_dim),
-        proprio_output_dim=int(cfg.proprio_dim),
-        action_state_transforms=None,
-        use_stepwise_action_norm=False,
-        norm_default_mode="q01/q99",
-        norm_exception_mode=None,
-        action_state_merger=ConcatLeftAlign(),
-        train_transforms=[ToTensor()],
-        val_transforms=[ToTensor()],
-        drop_high_level_prob=1.0,
-        use_zh_instruction=False,
-        tokenizer=None,
-        delta_action_dim_mask=None,
-    )
-
-
-def _build_stage2_processor(cfg: Stage2Config) -> DreamFreeProcessor:
-    dataset_name = _normalize_stage2_dataset_name(cfg.dataset_name)
-    if _is_stage2_libero_dataset_name(dataset_name):
-        return _build_libero_processor(cfg)
-    if _is_stage2_robotwin_dataset_name(dataset_name):
-        return _build_robotwin_processor(cfg)
-    if _is_stage2_robocasa_dataset_name(dataset_name):
-        return _build_robocasa_processor(cfg)
-    if _is_stage2_droid_dataset_name(dataset_name):
-        return _build_droid_processor(cfg)
-    raise ValueError(f"Unsupported Stage 2 dataset_name={cfg.dataset_name!r}.")
-
-
-def _load_stage2_dataset_stats(
-    *, pretrained_norm_stats: str | None, dataset_name: str, metas: Sequence[LeRobotDatasetMetadata]
-) -> dict[str, Any]:
-
-    def convert_lerobot_stats(
-        stats: dict[str, dict[str, Any]], *, action_key: str, state_key: str
-    ) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-
-        def convert_feature_stats(
-            source: dict[str, Any], *, feature_key: str
-        ) -> dict[str, torch.Tensor]:
-            converted: dict[str, torch.Tensor] = {}
-            for stat_name in ("min", "max", "mean", "std", "q01", "q99"):
-                if stat_name not in source and stat_name in {"min", "max", "mean", "std"}:
-                    raise KeyError(
-                        f"LeRobot metadata stats for {feature_key!r} are missing {stat_name!r}."
-                    )
-                if stat_name not in source:
-                    continue
-                tensor = torch.as_tensor(source[stat_name], dtype=torch.float32)
-                converted[f"global_{stat_name}"] = tensor
-                converted[f"stepwise_{stat_name}"] = tensor.unsqueeze(0)
-            return converted
-
-        def convert_feature(feature_key: str) -> dict[str, torch.Tensor]:
-            if feature_key not in stats:
-                raise KeyError(
-                    f"LeRobot metadata stats are missing required feature {feature_key!r}."
-                )
-            return convert_feature_stats(stats[feature_key], feature_key=feature_key)
-
-        return {
-            "action": {"default": convert_feature(action_key)},
-            "state": {"default": convert_feature(state_key)},
-        }
-
-    def ensure_feature_count(
-        feature_stats: dict[str, Any], *, meta: LeRobotDatasetMetadata, feature_key: str
-    ) -> dict[str, Any]:
-        normalized = dict(feature_stats)
-        if "count" in normalized:
-            return normalized
-        total_frames = int(getattr(meta, "total_frames", 0))
-        if total_frames <= 0:
-            raise ValueError(
-                f"LeRobot metadata stats for {feature_key!r} in root={meta.root} are missing 'count', and meta/info.json does not provide a positive total_frames value."
-            )
-        normalized["count"] = np.asarray([total_frames], dtype=np.int64)
-        return normalized
-
-    def normalize_libero_stats(meta: LeRobotDatasetMetadata) -> dict[str, dict[str, Any]]:
-        stats = meta.stats
-        if not stats:
-            raise ValueError(
-                f"LeRobot metadata stats are empty for LIBERO dataset root={meta.root}."
-            )
-        if "actions" in stats and "state" in stats:
-            return {"action": stats["actions"], "state": stats["state"]}
-        if "action" in stats and "observation.state" in stats:
-            return {"action": stats["action"], "state": stats["observation.state"]}
-        raise KeyError(
-            f"LIBERO-family metadata stats for root={meta.root} must contain either ('action', 'observation.state') or ('actions', 'state')."
-        )
-
-    def slice_feature_stats(
-        source: dict[str, Any], *, feature_key: str, start: int, end: int
-    ) -> dict[str, Any]:
-        sliced: dict[str, Any] = {}
-        for stat_name in ("min", "max", "mean", "std", "q01", "q99"):
-            if stat_name not in source:
-                raise KeyError(
-                    f"DROID metadata stats for {feature_key!r} are missing {stat_name!r}."
-                )
-            values = np.asarray(source[stat_name], dtype=np.float32)
-            if values.ndim != 1 or int(values.shape[0]) < end:
-                raise ValueError(
-                    f"DROID metadata stats for {feature_key!r}.{stat_name} must be 1D with at least {end} values, got shape={values.shape}."
-                )
-            sliced[stat_name] = values[start:end]
-        return sliced
-
-    def normalize_droid_stats(meta: LeRobotDatasetMetadata) -> dict[str, dict[str, Any]]:
-        stats = meta.stats
-        if not stats:
-            raise ValueError(
-                f"LeRobot metadata stats are empty for DROID dataset root={meta.root}."
-            )
-        if "action" not in stats or "observation.state" not in stats:
-            raise KeyError(
-                f"DROID DreamZero metadata for root={meta.root} must contain ('action', 'observation.state') stats."
-            )
-        root = Path(meta.root)
-        relative_stats_path = root / "meta" / DROID_DREAMZERO_RELATIVE_STATS_FILE
-        if not relative_stats_path.exists():
-            raise FileNotFoundError(
-                f"DROID DreamZero relative action stats not found: {relative_stats_path}"
-            )
-        with relative_stats_path.open("r", encoding="utf-8") as handle:
-            relative_stats = json.load(handle)
-        joint_relative_stats = relative_stats.get(DROID_JOINT_POSITION_KEY)
-        if not isinstance(joint_relative_stats, dict):
-            raise KeyError(
-                f"DROID relative stats must contain {DROID_JOINT_POSITION_KEY!r}: {relative_stats_path}"
-            )
-        (state_joint_start, state_joint_end) = _droid_modality_range(
-            root, "state", DROID_JOINT_POSITION_KEY
-        )
-        (state_gripper_start, state_gripper_end) = _droid_modality_range(
-            root, "state", DROID_GRIPPER_POSITION_KEY
-        )
-        (action_gripper_start, action_gripper_end) = _droid_modality_range(
-            root, "action", DROID_GRIPPER_POSITION_KEY
-        )
-        return {
-            "action": {
-                DROID_JOINT_POSITION_KEY: joint_relative_stats,
-                DROID_GRIPPER_POSITION_KEY: slice_feature_stats(
-                    stats["action"],
-                    feature_key="action.gripper_position",
-                    start=action_gripper_start,
-                    end=action_gripper_end,
-                ),
-            },
-            "state": {
-                DROID_JOINT_POSITION_KEY: slice_feature_stats(
-                    stats["observation.state"],
-                    feature_key="state.joint_position",
-                    start=state_joint_start,
-                    end=state_joint_end,
-                ),
-                DROID_GRIPPER_POSITION_KEY: slice_feature_stats(
-                    stats["observation.state"],
-                    feature_key="state.gripper_position",
-                    start=state_gripper_start,
-                    end=state_gripper_end,
-                ),
-            },
-        }
-
-    def convert_droid_feature_stats(
-        source: dict[str, Any], *, feature_key: str
-    ) -> dict[str, torch.Tensor]:
-        converted: dict[str, torch.Tensor] = {}
-        for stat_name in ("min", "max", "mean", "std", "q01", "q99"):
-            if stat_name not in source:
-                raise KeyError(
-                    f"DROID DreamZero stats for {feature_key!r} are missing {stat_name!r}."
-                )
-            tensor = torch.as_tensor(source[stat_name], dtype=torch.float32)
-            converted[f"global_{stat_name}"] = tensor
-            converted[f"stepwise_{stat_name}"] = tensor.unsqueeze(0)
-        return converted
-
-    def convert_droid_stats(
-        stats: dict[str, dict[str, Any]],
-    ) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
-        return {
-            "action": {
-                DROID_JOINT_POSITION_KEY: convert_droid_feature_stats(
-                    stats["action"][DROID_JOINT_POSITION_KEY], feature_key="action.joint_position"
-                ),
-                DROID_GRIPPER_POSITION_KEY: convert_droid_feature_stats(
-                    stats["action"][DROID_GRIPPER_POSITION_KEY],
-                    feature_key="action.gripper_position",
-                ),
-            },
-            "state": {
-                DROID_JOINT_POSITION_KEY: convert_droid_feature_stats(
-                    stats["state"][DROID_JOINT_POSITION_KEY], feature_key="state.joint_position"
-                ),
-                DROID_GRIPPER_POSITION_KEY: convert_droid_feature_stats(
-                    stats["state"][DROID_GRIPPER_POSITION_KEY], feature_key="state.gripper_position"
-                ),
-            },
-        }
-
-    stats_text = "" if pretrained_norm_stats is None else str(pretrained_norm_stats).strip()
-    if stats_text not in {"", "null", "None"}:
-        stats_path = Path(stats_text).expanduser().resolve()
-        if not stats_path.exists():
-            raise FileNotFoundError(f"Sparse Stage 2 pretrained_norm_stats not found: {stats_path}")
-        return load_dataset_stats_from_json(str(stats_path))
-    if _is_stage2_libero_dataset_name(dataset_name):
-        unified_stats = [normalize_libero_stats(meta) for meta in metas]
-        return convert_lerobot_stats(
-            aggregate_stats(unified_stats), action_key="action", state_key="state"
-        )
-    if _is_stage2_droid_dataset_name(dataset_name):
-        if len(metas) != 1:
-            raise ValueError(
-                f"DROID DreamZero Stage 2 stats require exactly one dataset root, got {len(metas)}."
-            )
-        return convert_droid_stats(normalize_droid_stats(metas[0]))
-    raise ValueError(
-        "Sparse Stage 2 dataset requires `pretrained_norm_stats` for RobotWin/RoboCasa datasets."
-    )
-
-
 def _require_sparse_stage2_video_backend() -> str:
     if importlib.util.find_spec("torchcodec") is None:
         raise RuntimeError(
@@ -878,16 +181,16 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
         text_embedding_cache_dir: str,
         text_cache_model_suffix: str,
         context_len: int,
-        pretrained_norm_stats: str,
-        val_set_proportion: float,
-        test_set_proportion: float,
+        dataset_stats_path: str,
+        val_fraction: float,
+        test_fraction: float,
         split: str,
         is_training_set: bool,
         global_sample_stride: int,
         action_video_freq_ratio: int,
         skip_padding_as_possible: bool,
         max_padding_retry: int,
-        concat_multi_camera: str,
+        camera_layout: str,
         override_instruction: Optional[str],
         strict_loading: bool,
         strict_errors: bool,
@@ -953,7 +256,7 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
         self.is_training_set = bool(is_training_set)
         self.skip_padding_as_possible = bool(skip_padding_as_possible)
         self.max_padding_retry = int(max_padding_retry)
-        self.concat_multi_camera = str(concat_multi_camera)
+        self.camera_layout = str(camera_layout)
         self.override_instruction = override_instruction
         self.strict_loading = bool(strict_loading)
         self.strict_errors = bool(strict_errors)
@@ -972,7 +275,7 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
             self._apply_droid_modality_ranges(Path(metas[0].root))
         self.processor = processor.train() if self.is_training_set else processor.eval()
         dataset_stats = _load_stage2_dataset_stats(
-            pretrained_norm_stats=pretrained_norm_stats, dataset_name=self.dataset_name, metas=metas
+            dataset_stats_path=dataset_stats_path, dataset_name=self.dataset_name, metas=metas
         )
         self.processor.set_normalizer_from_stats(dataset_stats)
         self.image_transforms = (
@@ -1001,8 +304,8 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
         self.delta_timestamps = self._build_delta_timestamps()
         episodes = self._build_episode_split(
             metas=metas,
-            val_set_proportion=float(val_set_proportion),
-            test_set_proportion=float(test_set_proportion),
+            val_fraction=float(val_fraction),
+            test_fraction=float(test_fraction),
             seed=int(split_seed),
         )
         multi_dataset_kwargs = {
@@ -1133,8 +436,8 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
         self,
         *,
         metas: list[LeRobotDatasetMetadata],
-        val_set_proportion: float,
-        test_set_proportion: float,
+        val_fraction: float,
+        test_fraction: float,
         seed: int,
     ) -> dict[str, list[int]]:
         episodes: dict[str, list[int]] = {}
@@ -1143,8 +446,8 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
             selected = _select_stage2_episode_indices_for_split(
                 meta,
                 split=self.split,
-                val_set_proportion=val_set_proportion,
-                test_set_proportion=test_set_proportion,
+                val_fraction=val_fraction,
+                test_fraction=test_fraction,
                 seed=seed,
                 allowed_episode_indices=allowed_episode_indices,
             )
@@ -1310,11 +613,11 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
     def _compose_droid_grid(self, video: torch.Tensor) -> torch.Tensor:
         if int(video.shape[0]) != 3:
             raise ValueError(
-                f"`concat_multi_camera='{DROID_GRID_CONCAT_MULTI_CAMERA}'` requires exactly 3 cameras, got {int(video.shape[0])}."
+                f"`camera_layout='{DROID_GRID_CONCAT_MULTI_CAMERA}'` requires exactly 3 cameras, got {int(video.shape[0])}."
             )
         if [int(v) for v in self.video_size] != [DROID_GRID_HEIGHT, DROID_GRID_WIDTH]:
             raise ValueError(
-                f"`concat_multi_camera='{DROID_GRID_CONCAT_MULTI_CAMERA}'` requires video_size={[DROID_GRID_HEIGHT, DROID_GRID_WIDTH]}, got {self.video_size}."
+                f"`camera_layout='{DROID_GRID_CONCAT_MULTI_CAMERA}'` requires video_size={[DROID_GRID_HEIGHT, DROID_GRID_WIDTH]}, got {self.video_size}."
             )
         per_camera_h = DROID_GRID_HEIGHT // 2
         per_camera_w = DROID_GRID_WIDTH // 2
@@ -1338,10 +641,10 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
             )
         (num_cameras, video_t, channels, height, width) = pixel_values.shape
         video = pixel_values.view(num_cameras, video_t, channels, height, width)
-        if self.concat_multi_camera == "robotwin":
+        if self.camera_layout == "robotwin":
             if num_cameras != 3:
                 raise ValueError(
-                    f"`concat_multi_camera='robotwin'` requires exactly 3 cameras, got {num_cameras}."
+                    f"`camera_layout='robotwin'` requires exactly 3 cameras, got {num_cameras}."
                 )
             cam_top = transforms_F.resize(
                 video[0],
@@ -1363,50 +666,29 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
             )
             bottom = torch.cat([cam_left, cam_right], dim=-1)
             video = torch.cat([cam_top, bottom], dim=-2)
-        elif self.concat_multi_camera in {
+        elif self.camera_layout in {
             ROBOCASA_DREAMZERO_CONCAT_MULTI_CAMERA,
             ROBOCASA_DREAMZERO_448_CONCAT_MULTI_CAMERA,
         }:
             if num_cameras != 3:
                 raise ValueError(
-                    f"`concat_multi_camera='{self.concat_multi_camera}'` requires exactly 3 cameras, got {num_cameras}."
+                    f"`camera_layout='{self.camera_layout}'` requires exactly 3 cameras, got {num_cameras}."
                 )
-            tile = (
-                224
-                if self.concat_multi_camera == ROBOCASA_DREAMZERO_448_CONCAT_MULTI_CAMERA
-                else 176
-            )
-            full_width = tile * 2
-            cam_left = transforms_F.resize(
-                video[0],
-                size=[tile, tile],
-                interpolation=transforms_F.InterpolationMode.BILINEAR,
-                antialias=True,
-            )
-            cam_right = transforms_F.resize(
-                video[1],
-                size=[tile, tile],
-                interpolation=transforms_F.InterpolationMode.BILINEAR,
-                antialias=True,
-            )
-            cam_wrist = transforms_F.resize(
-                video[2],
-                size=[tile, full_width],
-                interpolation=transforms_F.InterpolationMode.BILINEAR,
-                antialias=True,
-            )
-            bottom = torch.cat([cam_left, cam_right], dim=-1)
-            video = torch.cat([cam_wrist, bottom], dim=-2)
-        elif self.concat_multi_camera == DROID_GRID_CONCAT_MULTI_CAMERA:
+            return compose_robocasa_dreamzero(
+                video,
+                output_size=tuple(self.video_size),
+                expected_raw_size=ROBOCASA_RAW_CAMERA_SIZE,
+            ).permute(1, 0, 2, 3)
+        elif self.camera_layout == DROID_GRID_CONCAT_MULTI_CAMERA:
             video = self._compose_droid_grid(video)
         elif num_cameras > 1:
-            if self.concat_multi_camera == "horizontal":
+            if self.camera_layout == "horizontal":
                 video = torch.cat([video[i] for i in range(num_cameras)], dim=-1)
-            elif self.concat_multi_camera == "vertical":
+            elif self.camera_layout == "vertical":
                 video = torch.cat([video[i] for i in range(num_cameras)], dim=-2)
             else:
                 raise ValueError(
-                    f"Invalid concat_multi_camera: {self.concat_multi_camera}. Expected one of: horizontal, vertical, robotwin, robocasa_dreamzero_352, robocasa_dreamzero_448, droid_grid."
+                    f"Invalid camera_layout: {self.camera_layout}. Expected one of: horizontal, vertical, robotwin, robocasa_dreamzero_352, robocasa_dreamzero_448, droid_grid."
                 )
         else:
             video = video.squeeze(0)
@@ -1567,394 +849,18 @@ class _SparseStage2RobotVideoDataset(torch.utils.data.Dataset):
         return self._get(idx)
 
 
-def build_stage2_cached_inputs(
-    core: Any,
-    sample: dict[str, Any],
-    tiled: bool = False,
-    *,
-    timing_recorder: _TimingRecorder | None = None,
-) -> dict[str, Any]:
-    required_common = ("context", "context_mask", "action", "proprio")
-    has_latents = "input_latents" in sample
-    has_video = "video" in sample
-    required = required_common
-    if not has_latents and (not has_video):
-        required = required_common + ("video",)
-    missing = [key for key in required if key not in sample]
-    if missing:
-        raise ValueError(f"Stage 2 training requires keys {required}; missing={missing}")
-    action = sample["action"]
-    proprio = sample["proprio"]
-    previous_action = sample.get("previous_action")
-    previous_action_is_pad = sample.get("previous_action_is_pad")
-    context = sample["context"]
-    context_mask = sample["context_mask"]
-    if not isinstance(action, torch.Tensor) or action.ndim != 3:
-        raise ValueError(
-            f"`sample['action']` must have shape [B,T,A], got {tuple(getattr(action, 'shape', ()))}."
-        )
-    if not isinstance(proprio, torch.Tensor) or proprio.ndim != 3:
-        raise ValueError(
-            f"`sample['proprio']` must have shape [B,T,P], got {tuple(getattr(proprio, 'shape', ()))}."
-        )
-    if (
-        not isinstance(context, torch.Tensor)
-        or context.ndim != 3
-        or tuple(context.shape[1:]) != (128, 4096)
-    ):
-        raise ValueError(
-            f"`sample['context']` must have shape [B,128,4096], got {tuple(getattr(context, 'shape', ()))}."
-        )
-    if (
-        not isinstance(context_mask, torch.Tensor)
-        or context_mask.ndim != 2
-        or tuple(context_mask.shape[1:]) != (128,)
-    ):
-        raise ValueError(
-            f"`sample['context_mask']` must have shape [B,128], got {tuple(getattr(context_mask, 'shape', ()))}."
-        )
-    context_mask_bool = context_mask.to(dtype=torch.bool)
-    batch_size = int(action.shape[0])
-    if int(context.shape[0]) != batch_size or int(context_mask.shape[0]) != batch_size:
-        raise ValueError(
-            f"Stage 2 cached context batch mismatch: action={batch_size}, context={context.shape[0]}, mask={context_mask.shape[0]}."
-        )
-    if int(proprio.shape[0]) != batch_size:
-        raise ValueError(
-            f"Stage 2 batch mismatch: action={batch_size}, proprio={proprio.shape[0]}."
-        )
-    if (previous_action is None) != (previous_action_is_pad is None):
-        raise ValueError(
-            "Stage 2 action history requires both `previous_action` and `previous_action_is_pad`, or neither."
-        )
-    if previous_action is not None:
-        if not isinstance(previous_action, torch.Tensor) or previous_action.ndim != 3:
-            raise ValueError(
-                f"`sample['previous_action']` must have shape [B,H,A], got {tuple(getattr(previous_action, 'shape', ()))}."
-            )
-        expected_history_shape = (batch_size, int(previous_action.shape[1]))
-        if int(previous_action.shape[1]) <= 0 or int(previous_action.shape[2]) != int(
-            action.shape[2]
-        ):
-            raise ValueError(
-                f"Stage 2 previous-action shape must use a positive history horizon and match action_dim: previous={tuple(previous_action.shape)} action={tuple(action.shape)}."
-            )
-        if (
-            not isinstance(previous_action_is_pad, torch.Tensor)
-            or tuple(previous_action_is_pad.shape) != expected_history_shape
-        ):
-            raise ValueError(
-                f"`sample['previous_action_is_pad']` must have shape {expected_history_shape}, got {tuple(getattr(previous_action_is_pad, 'shape', ()))}."
-            )
-        history_pad_mask = previous_action_is_pad.to(
-            device=previous_action.device, dtype=torch.bool
-        )
-        padded_history_nonzero = previous_action.ne(0).any(dim=-1) & history_pad_mask
-        if bool(padded_history_nonzero.any().item()):
-            raise ValueError("Padded previous-action values must be normalized zeros.")
-    if int(action.shape[1]) <= 0 or int(proprio.shape[1]) <= 0:
-        raise ValueError(
-            f"Stage 2 action/proprio horizon must be positive, got action={action.shape[1]} proprio={proprio.shape[1]}."
-        )
-    if int(action.shape[1]) != int(proprio.shape[1]):
-        raise ValueError(
-            f"Stage 2 requires proprio to align with action horizon, got action={action.shape[1]} proprio={proprio.shape[1]}."
-        )
-    video_model_family = str(getattr(core, "video_model_family", "wan22_ti2v_5b"))
-    is_14b = video_model_family == "wan22_i2v_a14b"
-    action_is_pad = sample.get("action_is_pad")
-    if action_is_pad is not None:
-        if not isinstance(action_is_pad, torch.Tensor) or tuple(action_is_pad.shape) != (
-            batch_size,
-            action.shape[1],
-        ):
-            raise ValueError(
-                f"`sample['action_is_pad']` must have shape {(batch_size, action.shape[1])}, got {tuple(getattr(action_is_pad, 'shape', ()))}."
-            )
-        valid_sum = (~action_is_pad.bool()).sum(dim=1)
-        if bool((valid_sum <= 0).any().item()):
-            sample_id = sample.get("sample_id")
-            prompt = sample.get("prompt")
-            raise ValueError(
-                f"Stage 2 received an all-padded action sample. sample_id={sample_id!r} prompt={prompt!r}"
-            )
-
-    def _resolve_batch_indices(
-        key: str, *, raw_indices: Any, subset_batch_size: int
-    ) -> torch.Tensor:
-        if raw_indices is None:
-            if subset_batch_size != batch_size:
-                raise ValueError(
-                    f"`sample[{key!r}]` is required when modality subset batch size {subset_batch_size} does not match full batch size {batch_size}."
-                )
-            return torch.arange(batch_size, dtype=torch.long)
-        if not isinstance(raw_indices, torch.Tensor) or raw_indices.ndim != 1:
-            raise ValueError(
-                f"`sample[{key!r}]` must be 1D long tensor of length {subset_batch_size}, got {tuple(getattr(raw_indices, 'shape', ()))}."
-            )
-        if int(raw_indices.shape[0]) != subset_batch_size:
-            raise ValueError(
-                f"`sample[{key!r}]` length must match modality batch size {subset_batch_size}, got {raw_indices.shape[0]}."
-            )
-        return raw_indices.to(dtype=torch.long, device="cpu")
-
-    assigned_rows = torch.zeros(batch_size, dtype=torch.bool)
-    latent_batch_indices_cpu: torch.Tensor | None = None
-    video_batch_indices_cpu: torch.Tensor | None = None
-    input_latents_raw = sample.get("input_latents")
-    i2v_condition_raw = sample.get(WAN22_A14B_I2V_CONDITION_LATENTS_KEY)
-    video_raw = sample.get("video")
-    if has_latents:
-        if not isinstance(input_latents_raw, torch.Tensor) or input_latents_raw.ndim != 5:
-            raise ValueError(
-                f"`sample['input_latents']` must be 5D [B,C,T,H,W]; got {tuple(getattr(input_latents_raw, 'shape', ()))}."
-            )
-        if is_14b:
-            if not isinstance(i2v_condition_raw, torch.Tensor) or i2v_condition_raw.ndim != 5:
-                raise ValueError(
-                    f"Stage 2 Wan2.2 14B cached-latent training requires `sample[{WAN22_A14B_I2V_CONDITION_LATENTS_KEY!r}]` with shape [B,C,T,H,W]. Regenerate the latent cache with official Wan2.2 I2V pseudo-video conditioning."
-                )
-            if tuple(i2v_condition_raw.shape) != tuple(input_latents_raw.shape):
-                raise ValueError(
-                    f"Stage 2 14B cached I2V condition shape must match input latents: condition={tuple(i2v_condition_raw.shape)} latents={tuple(input_latents_raw.shape)}."
-                )
-        latent_batch_indices_cpu = _resolve_batch_indices(
-            "input_latents_batch_indices",
-            raw_indices=sample.get("input_latents_batch_indices"),
-            subset_batch_size=int(input_latents_raw.shape[0]),
-        )
-        if bool(
-            ((latent_batch_indices_cpu < 0) | (latent_batch_indices_cpu >= batch_size)).any().item()
-        ):
-            raise ValueError(
-                f"`sample['input_latents_batch_indices']` must stay within [0, {batch_size}), got {latent_batch_indices_cpu.tolist()}."
-            )
-        if bool(assigned_rows[latent_batch_indices_cpu].any().item()):
-            raise ValueError(
-                f"`sample['input_latents_batch_indices']` contains duplicate rows: {latent_batch_indices_cpu.tolist()}."
-            )
-        assigned_rows[latent_batch_indices_cpu] = True
-    if has_video:
-        if (
-            not isinstance(video_raw, torch.Tensor)
-            or video_raw.ndim != 5
-            or int(video_raw.shape[1]) != 3
-        ):
-            raise ValueError(
-                f"`sample['video']` must have shape [B,3,T,H,W], got {tuple(getattr(video_raw, 'shape', ()))}."
-            )
-        if video_raw.shape[2] % 4 != 1:
-            raise ValueError(
-                f"Video frame count must satisfy T % 4 == 1, got {video_raw.shape[2]}."
-            )
-        if video_raw.shape[3] % 16 != 0 or video_raw.shape[4] % 16 != 0:
-            raise ValueError(
-                f"Video spatial dims must be multiples of 16, got H={video_raw.shape[3]}, W={video_raw.shape[4]}."
-            )
-        video_batch_indices_cpu = _resolve_batch_indices(
-            "video_batch_indices",
-            raw_indices=sample.get("video_batch_indices"),
-            subset_batch_size=int(video_raw.shape[0]),
-        )
-        if bool(
-            ((video_batch_indices_cpu < 0) | (video_batch_indices_cpu >= batch_size)).any().item()
-        ):
-            raise ValueError(
-                f"`sample['video_batch_indices']` must stay within [0, {batch_size}), got {video_batch_indices_cpu.tolist()}."
-            )
-        if bool(assigned_rows[video_batch_indices_cpu].any().item()):
-            raise ValueError(
-                f"Stage 2 mixed cached/live batch assigned the same batch rows to both modalities: {video_batch_indices_cpu.tolist()}."
-            )
-        assigned_rows[video_batch_indices_cpu] = True
-    if not bool(assigned_rows.all().item()):
-        missing_rows = (~assigned_rows).nonzero(as_tuple=False).flatten().tolist()
-        raise ValueError(
-            f"Stage 2 mixed cached/live batch left rows without modality assignment: {missing_rows}."
-        )
-    image_is_pad = sample.get("image_is_pad")
-    with (
-        timing_recorder.record("diag_input_transfer_seconds")
-        if timing_recorder is not None
-        else nullcontext()
-    ):
-        context = context.to(device=core.device, dtype=core.torch_dtype, non_blocking=True)
-        context_mask = context_mask_bool.to(device=core.device, dtype=torch.bool, non_blocking=True)
-        dit_context_mask = (
-            None
-            if context_mask_bool.device.type == "cpu" and bool(context_mask_bool.all().item())
-            else context_mask_bool.to(device=core.device, dtype=torch.bool, non_blocking=True)
-        )
-        action = action.to(device=core.device, dtype=core.torch_dtype, non_blocking=True)
-        proprio = proprio.to(device=core.device, dtype=core.torch_dtype, non_blocking=True)
-        previous_action = (
-            None
-            if previous_action is None
-            else previous_action.to(device=core.device, dtype=core.torch_dtype, non_blocking=True)
-        )
-        previous_action_is_pad = (
-            None
-            if previous_action_is_pad is None
-            else previous_action_is_pad.to(device=core.device, dtype=torch.bool, non_blocking=True)
-        )
-        action_is_pad = (
-            None
-            if action_is_pad is None
-            else action_is_pad.to(device=core.device, dtype=torch.bool, non_blocking=True)
-        )
-        if image_is_pad is not None:
-            if (
-                not isinstance(image_is_pad, torch.Tensor)
-                or image_is_pad.ndim != 2
-                or int(image_is_pad.shape[0]) != batch_size
-            ):
-                raise ValueError(
-                    f"`sample['image_is_pad']` must have shape [B,T], got {tuple(getattr(image_is_pad, 'shape', ()))}."
-                )
-            image_is_pad = image_is_pad.to(device=core.device, dtype=torch.bool, non_blocking=True)
-        input_latents_cached = (
-            None
-            if not has_latents
-            else input_latents_raw.to(
-                device=core.device, dtype=core.torch_dtype, non_blocking=True
-            ).detach()
-        )
-        i2v_condition_cached = (
-            None
-            if not (is_14b and has_latents)
-            else i2v_condition_raw.to(
-                device=core.device, dtype=core.torch_dtype, non_blocking=True
-            ).detach()
-        )
-        input_video = (
-            None
-            if not has_video
-            else video_raw.to(device=core.device, dtype=core.torch_dtype, non_blocking=True)
-        )
-    input_latents_video = None
-    i2v_condition_video = None
-    if has_video:
-        with (
-            timing_recorder.record("diag_live_vae_encode_seconds")
-            if timing_recorder is not None
-            else nullcontext()
-        ):
-            with torch.no_grad():
-                input_latents_video = core._encode_video_latents(input_video, tiled=tiled).detach()
-                if is_14b:
-                    i2v_condition_video = core._encode_14b_i2v_condition_latents(
-                        input_video, tiled=tiled
-                    ).detach()
-    reference_latents = (
-        input_latents_cached if input_latents_cached is not None else input_latents_video
-    )
-    if reference_latents is None:
-        raise AssertionError("Stage 2 batch must provide cached latents, live video, or both.")
-    if input_latents_cached is not None and input_latents_video is not None:
-        if tuple(input_latents_cached.shape[1:]) != tuple(input_latents_video.shape[1:]):
-            raise ValueError(
-                f"Stage 2 cached/live latent shapes do not match: cached={tuple(input_latents_cached.shape)} live={tuple(input_latents_video.shape)}."
-            )
-    reference_i2v_condition = (
-        i2v_condition_cached if i2v_condition_cached is not None else i2v_condition_video
-    )
-    if is_14b:
-        if reference_i2v_condition is None:
-            raise ValueError(
-                f"Stage 2 Wan2.2 14B requires official I2V condition latents. Provide live video or regenerate cached latents with `{WAN22_A14B_I2V_CONDITION_LATENTS_KEY}`."
-            )
-        if tuple(reference_i2v_condition.shape[1:]) != tuple(reference_latents.shape[1:]):
-            raise ValueError(
-                f"Stage 2 14B I2V condition shape must match input latents after the batch axis: condition={tuple(reference_i2v_condition.shape)} latents={tuple(reference_latents.shape)}."
-            )
-        if i2v_condition_cached is not None and input_latents_cached is not None:
-            if tuple(i2v_condition_cached.shape) != tuple(input_latents_cached.shape):
-                raise ValueError(
-                    f"Stage 2 cached 14B I2V condition shape mismatch: condition={tuple(i2v_condition_cached.shape)} latents={tuple(input_latents_cached.shape)}."
-                )
-        if i2v_condition_video is not None and input_latents_video is not None:
-            if tuple(i2v_condition_video.shape) != tuple(input_latents_video.shape):
-                raise ValueError(
-                    f"Stage 2 live 14B I2V condition shape mismatch: condition={tuple(i2v_condition_video.shape)} latents={tuple(input_latents_video.shape)}."
-                )
-    latent_t = int(reference_latents.shape[2])
-    expected_video_t = (latent_t - 1) * 4 + 1
-    if image_is_pad is not None and tuple(image_is_pad.shape) != (batch_size, expected_video_t):
-        raise ValueError(
-            f"`sample['image_is_pad']` must have shape {(batch_size, expected_video_t)} for latent_t={latent_t}, got {tuple(getattr(image_is_pad, 'shape', ()))}."
-        )
-    input_latents = torch.empty(
-        (batch_size, *reference_latents.shape[1:]), device=core.device, dtype=core.torch_dtype
-    )
-    if input_latents_cached is not None:
-        assert latent_batch_indices_cpu is not None
-        input_latents.index_copy_(
-            0,
-            latent_batch_indices_cpu.to(device=core.device, non_blocking=True),
-            input_latents_cached,
-        )
-    if input_latents_video is not None:
-        assert video_batch_indices_cpu is not None
-        input_latents.index_copy_(
-            0,
-            video_batch_indices_cpu.to(device=core.device, non_blocking=True),
-            input_latents_video,
-        )
-    i2v_condition_latents = None
-    if is_14b:
-        assert reference_i2v_condition is not None
-        i2v_condition_latents = torch.empty_like(input_latents)
-        if i2v_condition_cached is not None:
-            assert latent_batch_indices_cpu is not None
-            i2v_condition_latents.index_copy_(
-                0,
-                latent_batch_indices_cpu.to(device=core.device, non_blocking=True),
-                i2v_condition_cached,
-            )
-        if i2v_condition_video is not None:
-            assert video_batch_indices_cpu is not None
-            i2v_condition_latents.index_copy_(
-                0,
-                video_batch_indices_cpu.to(device=core.device, non_blocking=True),
-                i2v_condition_video,
-            )
-    inputs = {
-        "context": context,
-        "context_mask": context_mask,
-        "dit_context_mask": dit_context_mask,
-        "input_latents": input_latents,
-        "action": action,
-        "proprio": proprio,
-        "action_is_pad": action_is_pad,
-        "image_is_pad": image_is_pad,
-    }
-    if previous_action is not None:
-        inputs["previous_action"] = previous_action
-        inputs["previous_action_is_pad"] = previous_action_is_pad
-    if i2v_condition_latents is not None:
-        inputs[WAN22_A14B_I2V_CONDITION_LATENTS_KEY] = i2v_condition_latents
-    for key in ("prompt", "idx"):
-        if key in sample:
-            inputs[key] = sample[key]
-    return inputs
-
-
 def _build_stage2_live_dataset(
     cfg: Stage2Config,
     *,
     split: str,
-    val_set_proportion: float | None = None,
-    test_set_proportion: float | None = None,
+    val_fraction: float | None = None,
+    test_fraction: float | None = None,
 ) -> Dataset:
     is_training = split == "train"
     video_roots = None
-    resolved_val_set_proportion = (
-        float(cfg.val_set_proportion) if val_set_proportion is None else float(val_set_proportion)
-    )
-    resolved_test_set_proportion = (
-        float(getattr(cfg, "test_set_proportion", 0.0))
-        if test_set_proportion is None
-        else float(test_set_proportion)
+    resolved_val_fraction = float(cfg.val_fraction) if val_fraction is None else float(val_fraction)
+    resolved_test_fraction = (
+        float(getattr(cfg, "test_fraction", 0.0)) if test_fraction is None else float(test_fraction)
     )
     return _SparseStage2RobotVideoDataset(
         dataset_dirs=_parse_dataset_dirs(cfg.dataset_dirs),
@@ -1967,17 +873,17 @@ def _build_stage2_live_dataset(
         processor=_build_stage2_processor(cfg),
         text_embedding_cache_dir=str(cfg.text_embedding_cache_dir),
         text_cache_model_suffix=_stage2_text_cache_suffix(cfg),
-        context_len=int(cfg.context_len),
-        pretrained_norm_stats=str(cfg.pretrained_norm_stats),
-        val_set_proportion=resolved_val_set_proportion,
-        test_set_proportion=resolved_test_set_proportion,
+        context_len=int(cfg.tokenizer_max_len),
+        dataset_stats_path=str(cfg.dataset_stats_path),
+        val_fraction=resolved_val_fraction,
+        test_fraction=resolved_test_fraction,
         split=str(split),
         is_training_set=is_training,
         global_sample_stride=int(cfg.global_sample_stride),
         action_video_freq_ratio=int(cfg.action_video_freq_ratio),
         skip_padding_as_possible=False,
         max_padding_retry=3,
-        concat_multi_camera=str(cfg.concat_multi_camera),
+        camera_layout=str(cfg.camera_layout),
         override_instruction=None,
         strict_loading=bool(cfg.strict_dataset_errors),
         strict_errors=bool(cfg.strict_dataset_errors),
@@ -2023,12 +929,17 @@ def _attach_cache_episode_index(
     return dataset
 
 
-def _build_stage2_dataset(cfg, *, split, val_set_proportion=None, test_set_proportion=None):
+def _build_stage2_dataset(cfg, *, split, val_fraction=None, test_fraction=None):
+    if cfg.dataset_name in yam.DATASET_NAMES:
+        from dreamfree.data.abc_dataset import ABCCachedDataset, ABCLiveDataset
+
+        dataset_type = ABCCachedDataset if cfg.use_cached_latents else ABCLiveDataset
+        return dataset_type(cfg, split=split)
     live = _build_stage2_live_dataset(
         cfg,
         split=split,
-        val_set_proportion=val_set_proportion,
-        test_set_proportion=test_set_proportion,
+        val_fraction=val_fraction,
+        test_fraction=test_fraction,
     )
     if not cfg.use_cached_latents:
         return live
@@ -2036,7 +947,7 @@ def _build_stage2_dataset(cfg, *, split, val_set_proportion=None, test_set_propo
 
     live = _attach_cache_episode_index(live)
     return CachedStage2LatentDataset(
-        cache_dir=str(cfg.stage2_latent_cache_dir),
+        cache_dir=str(cfg.video_latent_cache_dir),
         source_dataset=live,
         expected_cache_contract=_stage2_latent_cache_expected_contract(cfg),
     )

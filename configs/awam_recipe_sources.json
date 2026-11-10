@@ -1,0 +1,245 @@
+{
+  "libero_5b": {
+    "stage2": {
+      "config": "stage2_libero_5b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage2/libero_vam_stage2_gpus6_07-01_00-23-29/checkpoints/step_042869",
+      "selected_step": 42869,
+      "reference_world_size": 1,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_spatial_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_object_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_goal_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_10_no_noops_lerobot",
+      "original_num_epochs": 10.0,
+      "original_max_steps": 42869,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "action_dit_pretrained_path": "/data-vol2/jaehyeong/FastWAM/checkpoints/ActionDiT_linear_interp_Wan22_alphascale_1024hdim.pt",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/libero",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache/libero_5b_224x448_h33_stride4"
+      }
+    },
+    "stage1": {
+      "config": "stage1_libero_5b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage1/libero_vam_stage1_rank128_gpus1234_06-30_04-42-56/checkpoints/step_080000",
+      "selected_step": 80000,
+      "reference_world_size": 4,
+      "global_batch_size": 128,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_spatial_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_object_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_goal_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_10_no_noops_lerobot",
+      "original_num_epochs": null,
+      "original_max_steps": 80000,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/libero",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache/libero_5b_224x448_h33_stride4"
+      }
+    },
+    "stage0": {
+      "config": "stage0_libero_5b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage0_libero/wan_shift_full_rank128_gpus4567_06-29_01-44-20/checkpoints/step_006894",
+      "selected_step": 6894,
+      "reference_world_size": 4,
+      "global_batch_size": 128,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_spatial_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_object_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_goal_no_noops_lerobot,/data-vol2/jaehyeong/awam/data/libero_mujoco3.3.2/libero_10_no_noops_lerobot",
+      "original_num_epochs": 4.0,
+      "original_max_steps": 6894,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/libero",
+        "stage0_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache/libero_5b_224x448_h33_stride4"
+      }
+    }
+  },
+  "robocasa_14b": {
+    "stage2": {
+      "config": "stage2_robocasa_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage2_a14b/robocasa_vam_stage2_a14b_gpus06_07-23_15-36-19/checkpoints/step_012245",
+      "selected_step": 12245,
+      "reference_world_size": 2,
+      "global_batch_size": 512,
+      "original_dataset_roots": "/data-vol2/sangwon/FastWAM/data/robocasa_cosmos_success_lerobot",
+      "original_num_epochs": 20.0,
+      "original_max_steps": 12245,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "action_dit_pretrained_path": "/data-vol2/jaehyeong/FastWAM/checkpoints/ActionDiT_linear_interp_Wan22_alphascale_1024hdim.pt",
+        "pretrained_norm_stats": "/data-vol2/sangwon/FastWAM/data/robocasa_cosmos_success_lerobot/dataset_stats.json",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/robocasa_a14b_alias",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/robocasa_dreamzero_wan21_352_h33_stride4"
+      }
+    },
+    "stage1": {
+      "config": "stage1_robocasa_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage1_a14b/robocasa_success_vam_stage1_a14b_high_noise_rank128_gpus06_07-20_07-30-11/checkpoints/step_074226",
+      "selected_step": 74226,
+      "reference_world_size": 2,
+      "global_batch_size": 32,
+      "original_dataset_roots": "/data-vol2/sangwon/FastWAM/data/robocasa_cosmos_success_lerobot",
+      "original_num_epochs": null,
+      "original_max_steps": 74226,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/robocasa_a14b_alias",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/robocasa_dreamzero_wan21_352_h33_stride4"
+      }
+    },
+    "stage0": {
+      "config": "stage0_robocasa_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage0_robocasa_i2v_a14b/high_noise_wan_shift_full_rank128_gpus2345_06-22_15-25-49/checkpoints/step_017269",
+      "selected_step": 17269,
+      "reference_world_size": 4,
+      "global_batch_size": 32,
+      "original_dataset_roots": "/data-vol2/sangwon/FastWAM/data/robocasa_cosmos_success_lerobot",
+      "original_num_epochs": 2.0,
+      "original_max_steps": 17269,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/robocasa_a14b_alias",
+        "stage0_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/robocasa_dreamzero_wan21_352_h33_stride4"
+      }
+    }
+  },
+  "droid_14b": {
+    "stage2": {
+      "config": "stage2_droid_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage2_action_history_a14b/vam-stage2-action-history-a14b-multi-node-droid_09-03_07-35-32/checkpoints/step_057031",
+      "selected_step": 57031,
+      "reference_world_size": 16,
+      "global_batch_size": 4096,
+      "original_dataset_roots": "/data-vol2/sangwon/data/droid_lerobot",
+      "original_num_epochs": 16.0,
+      "original_max_steps": 57031,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "action_dit_pretrained_path": "/data-vol2/jaehyeong/FastWAM/checkpoints/ActionDiT_linear_interp_Wan22_alphascale_1024hdim.pt",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/droid_a14b_alias",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/droid_wan21_dreamzero_reljoint_gripper_q99_352x640_h33_stride4/droid_lerobot"
+      }
+    },
+    "stage1": {
+      "config": "stage1_droid_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/vam_stage1_a14b_full/vam-stage1-a14b-full-multi-node-droid_07-31_00-24-50/checkpoints/step_301265",
+      "selected_step": 301265,
+      "reference_world_size": 16,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/sangwon/data/droid_lerobot",
+      "original_num_epochs": 6.0,
+      "original_max_steps": 301265,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/droid_a14b_alias",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/droid_wan21_dreamzero_reljoint_gripper_q99_352x640_h33_stride4/droid_lerobot"
+      }
+    },
+    "stage0": {
+      "config": "stage0_droid_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage0_droid_i2v_a14b/high_noise_wan_shift_full_rank128_gpus01234567_06-19_00-09-10/checkpoints/step_051554",
+      "selected_step": 51554,
+      "reference_world_size": 8,
+      "global_batch_size": 32,
+      "original_dataset_roots": "/data-vol2/sangwon/data/droid_lerobot",
+      "original_num_epochs": 2.0,
+      "original_max_steps": 51554,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/droid_a14b_alias",
+        "stage0_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/droid_wan21_dreamzero_reljoint_gripper_q99_352x640_h33_stride4/droid_lerobot"
+      }
+    }
+  },
+  "abc_joint_14b": {
+    "stage2": {
+      "config": "stage2_abc_joint_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage2_yam_abc130k_a14b/vam-stage2-action-history-a14b-multi-node-yam-abc130k_10-14_12-30-28/checkpoints/step_040000",
+      "selected_step": 40000,
+      "reference_world_size": 16,
+      "global_batch_size": 4096,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200",
+      "original_num_epochs": 16.0,
+      "original_max_steps": 42074,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "action_dit_pretrained_path": "/data-vol2/jaehyeong/FastWAM/checkpoints/ActionDiT_linear_interp_Wan22_alphascale_1024hdim.pt",
+        "pretrained_norm_stats": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200/dataset_stats.json",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/yam_abc130k_center95_432x384_h33_stride4/yam_abc130k_640x480_100h_train_5h_val_gap200"
+      }
+    },
+    "stage1": {
+      "config": "stage1_abc_joint_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage1_yam_abc130k_a14b_full/vam-stage1-a14b-full-multi-node-droid_10-10_01-36-39/checkpoints/step_200000",
+      "selected_step": 200000,
+      "reference_world_size": 16,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200",
+      "original_num_epochs": 6.0,
+      "original_max_steps": 249441,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/yam_abc130k_center95_432x384_h33_stride4/yam_abc130k_640x480_100h_train_5h_val_gap200"
+      }
+    },
+    "stage0": {
+      "config": "stage0_abc_joint_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage0_yam_abc130k_a14b/stage0-a14b-yam-abc130k-high-noise_10-09_13-25-44/checkpoints/step_041574",
+      "selected_step": 41574,
+      "reference_world_size": 16,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200",
+      "original_num_epochs": 1.0,
+      "original_max_steps": 41574,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage0_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/yam_abc130k_center95_432x384_h33_stride4/yam_abc130k_640x480_100h_train_5h_val_gap200"
+      }
+    }
+  },
+  "abc_eef_14b": {
+    "stage2": {
+      "config": "stage2_abc_eef_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage2_yam_abc130k_eef_a14b/vam-stage2-action-history-a14b-multi-node-yam-abc130k_10-24_14-33-07/checkpoints/step_030000",
+      "selected_step": 30000,
+      "reference_world_size": 16,
+      "global_batch_size": 4096,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200_eef",
+      "original_num_epochs": 16.0,
+      "original_max_steps": 42074,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "action_dit_pretrained_path": "/data-vol2/jaehyeong/FastWAM/checkpoints/ActionDiT_linear_interp_Wan22_alphascale_1024hdim.pt",
+        "pretrained_norm_stats": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200_eef/dataset_stats.json",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200_eef/action_cache"
+      }
+    },
+    "stage1": {
+      "config": "stage1_abc_joint_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage1_yam_abc130k_a14b_full/vam-stage1-a14b-full-multi-node-droid_10-10_01-36-39/checkpoints/step_200000",
+      "selected_step": 200000,
+      "reference_world_size": 16,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200",
+      "original_num_epochs": 6.0,
+      "original_max_steps": 249441,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage2_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/yam_abc130k_center95_432x384_h33_stride4/yam_abc130k_640x480_100h_train_5h_val_gap200"
+      }
+    },
+    "stage0": {
+      "config": "stage0_abc_joint_14b.json",
+      "awam_checkpoint": "/data-vol2/jaehyeong/awam/checkpoints/stage0_yam_abc130k_a14b/stage0-a14b-yam-abc130k-high-noise_10-09_13-25-44/checkpoints/step_041574",
+      "selected_step": 41574,
+      "reference_world_size": 16,
+      "global_batch_size": 64,
+      "original_dataset_roots": "/data-vol2/jaehyeong/awam/data/yam_abc130k_640x480_100h_train_5h_val_gap200",
+      "original_num_epochs": 1.0,
+      "original_max_steps": 41574,
+      "original_artifact_paths": {
+        "model_base_path": "/data-vol2/jaehyeong/FastWAM/checkpoints",
+        "text_embedding_cache_dir": "/data-vol2/jaehyeong/awam/data/text_embeds_cache/yam_abc130k_a14b",
+        "stage0_latent_cache_dir": "/data-vol2/jaehyeong/awam/data/video_latent_cache_a14b_official_i2v_condition/yam_abc130k_center95_432x384_h33_stride4/yam_abc130k_640x480_100h_train_5h_val_gap200"
+      }
+    }
+  }
+}

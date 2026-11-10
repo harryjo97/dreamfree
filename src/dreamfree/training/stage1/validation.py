@@ -15,7 +15,6 @@ from dreamfree.data.distillation import (
     _is_stage1_robocasa_success_family_dataset,
     _parse_stage1_dataset_dirs,
     _stage1_robocasa_layout_spec,
-    _stage1_visual_preprocess_id,
 )
 from dreamfree.data.lerobot.cached_latent_dataset import validate_stage2_latent_cache_file
 from dreamfree.data.stage1_cache import (
@@ -49,7 +48,7 @@ from dreamfree.models.wan22.stage0_loader import (
     STAGE1_STUDENT_INIT_MODES,
     STAGE1_STUDENT_INIT_PRETRAINED_BASE,
 )
-from dreamfree.training.runtime import _json_load, _parse_optional_int
+from dreamfree.training.runtime import _parse_optional_int
 from dreamfree.training.stage0.constants import (
     HORIZONTAL_CONCAT_MULTI_CAMERA,
     LIBERO_CAMERA_KEYS,
@@ -84,12 +83,10 @@ def _validate_stage1_robocasa_dataset_config(
             f"Stage 1 Robocasa training requires camera_keys={','.join(ROBOCASA_STAGE1_CAMERA_KEYS)!r}."
         )
     layout = _stage1_robocasa_layout_spec(cfg)
-    expected_concat = str(layout["concat_multi_camera"])
+    expected_concat = str(layout["camera_layout"])
     expected_size = (int(layout["height"]), int(layout["width"]))
-    if str(cfg.concat_multi_camera).strip().lower() != expected_concat:
-        raise ValueError(
-            f"Stage 1 Robocasa training requires concat_multi_camera={expected_concat!r}."
-        )
+    if str(cfg.camera_layout).strip().lower() != expected_concat:
+        raise ValueError(f"Stage 1 Robocasa training requires camera_layout={expected_concat!r}.")
     if (int(cfg.height), int(cfg.width)) != expected_size:
         raise ValueError(
             f"Stage 1 Robocasa training requires height={expected_size[0]},width={expected_size[1]}, got {cfg.height}x{cfg.width}."
@@ -108,9 +105,9 @@ def _validate_stage1_droid_dataset_config(
         raise ValueError(
             f"Stage 1 DROID training requires camera_keys={','.join(DROID_STAGE1_CAMERA_KEYS)!r}."
         )
-    if str(cfg.concat_multi_camera).strip().lower() != DROID_STAGE1_CONCAT_MULTI_CAMERA:
+    if str(cfg.camera_layout).strip().lower() != DROID_STAGE1_CONCAT_MULTI_CAMERA:
         raise ValueError(
-            f"Stage 1 DROID training requires concat_multi_camera={DROID_STAGE1_CONCAT_MULTI_CAMERA!r}."
+            f"Stage 1 DROID training requires camera_layout={DROID_STAGE1_CONCAT_MULTI_CAMERA!r}."
         )
     if (int(cfg.height), int(cfg.width)) != (DROID_STAGE1_HEIGHT, DROID_STAGE1_WIDTH):
         raise ValueError(
@@ -123,7 +120,7 @@ def _validate_stage1_robocasa_latent_cache_metadata(path: Path, cfg: Stage1Confi
         meta = dict(handle.metadata() or {})
     expected = {
         "dataset_kind": "robocasa",
-        "concat_layout": str(_stage1_robocasa_layout_spec(cfg)["concat_multi_camera"]),
+        "concat_layout": str(_stage1_robocasa_layout_spec(cfg)["camera_layout"]),
     }
     mismatches = [
         f"{key}: actual={meta.get(key)!r} expected={value!r}"
@@ -138,7 +135,7 @@ def _validate_stage1_robocasa_latent_cache_metadata(path: Path, cfg: Stage1Confi
 
 def _validate_stage1_robocasa_latent_cache_config(cfg: Stage1Config) -> None:
     latent_cache_dir = resolve_stage1_latent_cache_dir(cfg)
-    cfg.stage2_latent_cache_dir = str(latent_cache_dir)
+    cfg.video_latent_cache_dir = str(latent_cache_dir)
     if not latent_cache_dir.exists():
         raise FileNotFoundError(
             f"Stage 1 Robocasa video latent cache directory not found: {latent_cache_dir}. Precompute the cache first or set use_cached_latents=false."
@@ -154,7 +151,7 @@ def _validate_stage1_robocasa_latent_cache_config(cfg: Stage1Config) -> None:
 
 def _validate_stage1_droid_latent_cache_config(cfg: Stage1Config) -> None:
     latent_cache_dir = resolve_stage1_latent_cache_dir(cfg)
-    cfg.stage2_latent_cache_dir = str(latent_cache_dir)
+    cfg.video_latent_cache_dir = str(latent_cache_dir)
     if not latent_cache_dir.exists():
         raise FileNotFoundError(
             f"Stage 1 DROID video latent cache directory not found: {latent_cache_dir}. Precompute the cache first or set use_cached_latents=false."
@@ -209,8 +206,8 @@ def validate_stage1_config(cfg: Stage1Config) -> None:
             raise ValueError(
                 f"Stage 1 {dataset_name} requires camera_keys to be one of {allowed_text}."
             )
-        if str(cfg.concat_multi_camera).strip().lower() != HORIZONTAL_CONCAT_MULTI_CAMERA:
-            raise ValueError("Stage 1 LIBERO-family requires concat_multi_camera='horizontal'.")
+        if str(cfg.camera_layout).strip().lower() != HORIZONTAL_CONCAT_MULTI_CAMERA:
+            raise ValueError("Stage 1 LIBERO-family requires camera_layout='horizontal'.")
         if (int(cfg.height), int(cfg.width)) != (224, 448):
             raise ValueError(
                 f"Stage 1 LIBERO-family requires height=224,width=448, got {cfg.height}x{cfg.width}."
@@ -225,8 +222,16 @@ def validate_stage1_config(cfg: Stage1Config) -> None:
         raise ValueError("Stage 1 v1 rejects prompt_policy other than 'task_text'.")
     if not bool(cfg.strict_task_text) or not bool(cfg.require_text_cache):
         raise ValueError("Stage 1 requires strict_task_text=true and require_text_cache=true.")
-    if not bool(cfg.use_shared_teacher_student_dit):
-        raise ValueError("Stage 1 requires use_shared_teacher_student_dit=true.")
+    if cfg.student_train_mode not in ("lora", "full"):
+        raise ValueError("Stage 1 student_train_mode must be 'lora' or 'full'.")
+    if bool(cfg.use_shared_teacher_student_dit) != (cfg.student_train_mode == "lora"):
+        raise ValueError("Full Stage 1 requires a separate frozen teacher; LoRA shares the DiT.")
+    if cfg.trim_frozen_teacher_blocks and cfg.student_train_mode != "full":
+        raise ValueError("trim_frozen_teacher_blocks requires full Stage 1 training.")
+    if cfg.student_train_mode == "lora" and (
+        cfg.projector_learning_rate is not None or cfg.warmup_steps is not None
+    ):
+        raise ValueError("projector_learning_rate and warmup_steps require full Stage 1 training.")
     if bool(cfg.compile_dit) and bool(cfg.use_gradient_checkpointing):
         raise ValueError("compile_dit=true is not supported with use_gradient_checkpointing=true.")
     student_text_scope = str(cfg.student_text_scope).strip().lower()
@@ -364,8 +369,8 @@ def validate_stage1_config(cfg: Stage1Config) -> None:
                 "Stage 1 v1 rejects projector_type='token_mlp'; use 'first_frame_decoder'."
             )
         raise ValueError("Stage 1 requires projector_type='first_frame_decoder'.")
-    if str(cfg.teacher_state_loss) != "cosine":
-        raise ValueError("DreamFree Stage 1 requires teacher_state_loss='cosine'.")
+    if str(cfg.distillation_loss) != "cosine":
+        raise ValueError("DreamFree Stage 1 requires distillation_loss='cosine'.")
     if int(cfg.clip_frames) <= 1 or int(cfg.clip_frames) % 4 != 1:
         raise ValueError(f"clip_frames must satisfy >1 and %4==1, got {cfg.clip_frames}.")
     if int(cfg.raw_frame_stride) <= 0 or int(cfg.sample_stride_frames) <= 0:
@@ -398,9 +403,9 @@ def validate_stage1_config(cfg: Stage1Config) -> None:
         raise ValueError(
             f"projector_num_heads must divide projector_dim, got {cfg.projector_num_heads} and {cfg.projector_dim}."
         )
-    if float(cfg.lambda_teacher_state) < 0.0:
+    if float(cfg.distillation_loss_weight) < 0.0:
         raise ValueError(
-            f"lambda_teacher_state must be non-negative, got {cfg.lambda_teacher_state}."
+            f"distillation_loss_weight must be non-negative, got {cfg.distillation_loss_weight}."
         )
     if float(cfg.stage0_expected_lora_dropout) != 0.0:
         raise ValueError("Stage 1 requires stage0_expected_lora_dropout=0.0 before merge.")
@@ -430,31 +435,8 @@ def validate_stage1_config(cfg: Stage1Config) -> None:
 def validate_stage1_launch_config(cfg: Stage1Config) -> None:
     """Validate all Stage 1 launch contracts before distributed setup."""
     validate_stage1_config(cfg)
-    validate_stage1_visual_lineage(cfg)
     if not bool(cfg.prepare_only):
         validate_stage1_teacher_sigma_bounds_against_stage0_checkpoint(cfg)
-
-
-def validate_stage1_visual_lineage(cfg: Stage1Config) -> None:
-    expected = _stage1_visual_preprocess_id(cfg)
-    if expected is None:
-        return
-    checkpoint = _stage0_lora_checkpoint_identity(cfg.stage0_lora_checkpoint)
-    if checkpoint is None:
-        raise ValueError(
-            f"Direct-bilinear RoboCasa Stage 1 requires a Stage 0 checkpoint carrying visual_preprocess_id={expected!r}."
-        )
-    metadata_path = Path(checkpoint) / "trainer_state.json"
-    if not metadata_path.is_file():
-        raise FileNotFoundError(
-            f"Direct-bilinear RoboCasa Stage 1 is missing Stage 0 metadata: {metadata_path}"
-        )
-    stage0_metadata = _json_load(metadata_path)
-    actual = stage0_metadata.get("visual_preprocess_id")
-    if actual != expected:
-        raise ValueError(
-            f"Direct-bilinear RoboCasa Stage 1 requires a newly trained Stage 0 checkpoint with visual_preprocess_id={expected!r}, got {actual!r} in {metadata_path}."
-        )
 
 
 def _scalar_metric_to_tensor(value: ScalarMetric, *, device: torch.device) -> torch.Tensor:
@@ -501,10 +483,8 @@ def evaluate_one_stage1_batch(
     was_training = unwrapped.training
     unwrapped.eval()
     (loss, loss_dict) = model(sample)
-    mean_loss = accelerator.gather_for_metrics(loss.detach().float().reshape(1)).mean().item()
-    gathered = _gather_scalar_metrics(
-        loss_dict, device=loss.device, gather_fn=accelerator.gather_for_metrics
-    )
+    mean_loss = accelerator.gather(loss.detach().float().reshape(1)).mean().item()
+    gathered = _gather_scalar_metrics(loss_dict, device=loss.device, gather_fn=accelerator.gather)
     if was_training:
         unwrapped.set_stage1_train_mode()
     return {

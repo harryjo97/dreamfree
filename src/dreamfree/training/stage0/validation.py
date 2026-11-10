@@ -290,7 +290,8 @@ def evaluate_one_batch(
         sigma_mid = (sigma_lo + sigma_hi) * 0.5
         (loss, _) = unwrapped.training_loss(sample, sigma=sigma_mid)
         loss_tensor = loss.detach().float().reshape(1)
-        mean_loss = accelerator.gather_for_metrics(loss_tensor).mean().item()
+        # Each rank contributes a batch mean, not a vector of per-example metrics.
+        mean_loss = accelerator.gather(loss_tensor).mean().item()
         bin_losses.append(float(mean_loss))
         suffix = _stage0_sigma_bin_metric_suffix(sigma_lo, sigma_hi)
         result[f"val_loss_{suffix}"] = float(mean_loss)

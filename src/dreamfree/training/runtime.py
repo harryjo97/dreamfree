@@ -71,7 +71,10 @@ def _json_dump(path: Path, payload: dict[str, Any]) -> None:
 
 def _json_load(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        payload = json.load(f)
+    from dreamfree.config_names import normalize_checkpoint_metadata
+
+    return normalize_checkpoint_metadata(payload)
 
 
 def _atomic_torch_save(path: Path, payload: dict[str, Any]) -> None:

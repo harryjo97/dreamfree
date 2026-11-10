@@ -2,8 +2,8 @@ import threading
 
 import numpy as np
 
-from dreamfree.evaluation.droid.policy_rpc import PolicyRpcClient
 from dreamfree.evaluation.droid_real.policy_rpc import PolicyRpcServer
+from dreamfree.evaluation.droid_sim.policy_rpc import PolicyRpcClient
 
 
 def test_simulation_client_and_server_share_rpc_contract():

@@ -9,7 +9,6 @@ from typing import Any
 import torch
 from safetensors.torch import load_file as load_safetensors
 
-from dreamfree.data.distillation import _stage1_visual_preprocess_id
 from dreamfree.models.artifacts import _require_checkpoint_dir
 from dreamfree.models.lora import load_lora_state_dict, merge_lora_adapters
 from dreamfree.models.wan22.future_state import (
@@ -24,8 +23,8 @@ from dreamfree.models.wan22.i2v_condition import concat_14b_i2v_condition
 from dreamfree.models.wan22.stage0_loader import (
     STAGE1_STUDENT_INIT_STAGE0_MERGED,
     load_stage0_merged_backbone,
+    load_stage0_merged_wan_core,
 )
-from dreamfree.training.runtime import _json_load
 from dreamfree.training.stage1.constants import (
     STAGE1_CHECKPOINT_TYPE,
     STAGE1_REQUIRED_STUDENT_FILES,
@@ -71,14 +70,7 @@ class FrozenStage1Student:
     expected_student_hidden_dim: int
     latent_shape: tuple[int, ...]
     readout_layer_idx: int | None = None
-    student_lora_merged_for_inference: bool = False
-
-
-def _json_load_dict(path: Path) -> dict[str, Any]:
-    payload = _json_load(path)
-    if not isinstance(payload, dict):
-        raise ValueError(f"Expected JSON object in {path}, got {type(payload)}.")
-    return payload
+    student_lora_merged: bool = False
 
 
 def _require_dict(value: Any, *, label: str) -> dict[str, Any]:
@@ -108,21 +100,27 @@ def _first_non_null_metadata_value(*values: Any) -> Any:
 def _stage1_student_view_metadata(metadata):
     if metadata.get("checkpoint_type") != STAGE1_CHECKPOINT_TYPE:
         raise ValueError("Expected a DreamFree stage 1 checkpoint.")
+    mode = metadata.get("config", {}).get("student_train_mode", "lora")
+    if mode not in ("lora", "full") or metadata.get("student_train_mode", "lora") != mode:
+        raise ValueError("Stage 1 checkpoint student_train_mode is missing or inconsistent.")
+    if bool(metadata.get("stage1_lora_config", {}).get("enabled", True)) != (mode == "lora"):
+        raise ValueError("Stage 1 LoRA metadata disagrees with student_train_mode.")
     return metadata
 
 
 def _stage1_required_student_files_for_metadata(metadata: dict[str, Any]) -> tuple[str, ...]:
+    if "release" in metadata:
+        return ("config.json", metadata["release"]["weights"])
+    if metadata.get("config", {}).get("student_train_mode", "lora") == "full":
+        return ("trainer_state.json", "student_dit.safetensors")
     return STAGE1_REQUIRED_STUDENT_FILES
 
 
 def read_stage1_student_source_metadata(checkpoint: str | Path | None) -> dict[str, Any]:
+    from dreamfree.models.release import read_checkpoint_metadata
+
     checkpoint_dir = _require_checkpoint_dir(checkpoint, label="Stage 1 source")
-    trainer_state_path = checkpoint_dir / "trainer_state.json"
-    if not trainer_state_path.exists():
-        raise FileNotFoundError(
-            f"Stage 1 source checkpoint is missing trainer_state.json: {checkpoint_dir}"
-        )
-    raw_metadata = _json_load_dict(trainer_state_path)
+    raw_metadata = read_checkpoint_metadata(checkpoint_dir, stage="stage1")
     missing = [
         name
         for name in _stage1_required_student_files_for_metadata(raw_metadata)
@@ -246,20 +244,6 @@ def validate_stage1_student_source(cfg: Any) -> Stage1StudentSource:
         video_family,
         str(getattr(cfg, "video_model_family")),
     )
-    expected_visual_id = _stage1_visual_preprocess_id(cfg)
-    if expected_visual_id is not None:
-        _stage1_loader_check_equal(
-            mismatches,
-            "visual_preprocess_id",
-            metadata.get("visual_preprocess_id"),
-            expected_visual_id,
-        )
-        _stage1_loader_check_equal(
-            mismatches,
-            "source_stage0_visual_preprocess_id",
-            metadata.get("source_stage0_visual_preprocess_id"),
-            expected_visual_id,
-        )
     if "D_student" in shapes:
         _stage1_loader_check_equal(
             mismatches,
@@ -382,18 +366,18 @@ def _build_stage1_loader_config(cfg: Any, source: Stage1StudentSource) -> Simple
         infer_shift=float(stage1_config.get("infer_shift", 5.0)),
         num_train_timesteps=int(stage1_config.get("num_train_timesteps", 1000)),
         use_gradient_checkpointing=bool(getattr(cfg, "use_gradient_checkpointing", False)),
-        stage1_lora_rank=int(
+        lora_rank=int(
             stage1_lora_config["rank"] if stage1_enabled else stage1_lora_config.get("rank", 0)
         ),
-        stage1_lora_alpha=float(
+        lora_alpha=float(
             stage1_lora_config["alpha"] if stage1_enabled else stage1_lora_config.get("alpha", 0.0)
         ),
-        stage1_lora_dropout=float(
+        lora_dropout=float(
             stage1_lora_config["dropout"]
             if stage1_enabled
             else stage1_lora_config.get("dropout", 0.0)
         ),
-        stage1_lora_target_modules=str(
+        lora_target_modules=str(
             stage1_lora_config["target_modules"]
             if stage1_enabled
             else stage1_lora_config.get("target_modules", "")
@@ -415,19 +399,64 @@ def load_frozen_stage1_student(
     source: Stage1StudentSource,
     device: str,
     dtype: torch.dtype,
-    merge_student_lora_for_inference: bool = False,
+    merge_student_lora: bool = False,
 ) -> FrozenStage1Student:
-    backbone = load_stage0_merged_backbone(
-        _build_stage1_loader_config(cfg, source), device=device, dtype=dtype
-    )
+    """Load an encoder for Stage 2 and enforce its frozen parameter boundary.
+
+    Args:
+        cfg: Stage 2 settings for model assets, video mode, and loading options.
+        source: Validated Stage 1 source metadata and token geometry.
+        device: Destination device for the encoder.
+        dtype: Encoder storage/computation dtype.
+        merge_student_lora: Whether to merge a native LoRA student's adapters;
+            releases are already standalone, and full students have no adapter.
+
+    Returns:
+        Frozen encoder bundle with source lineage and the selected readout layer.
+    """
+    from dreamfree.models.release import load_release_student
+
+    released = "release" in source.metadata
+    full = source.metadata.get("config", {}).get("student_train_mode", "lora") == "full"
+    if released:
+        metadata = {
+            **source.metadata,
+            "config": {**source.metadata["config"], "model_base_path": str(cfg.model_base_path)},
+        }
+        backbone = SimpleNamespace(
+            core=load_release_student(
+                source.checkpoint_dir,
+                metadata,
+                device=device,
+                dtype=dtype,
+                load_text_encoder=False,
+                load_vae=not bool(cfg.use_cached_latents),
+                distributed_checkpoint_broadcast=bool(cfg.pretrained_load_broadcast),
+            ),
+            stage0_lora_config={"enabled": False},
+            stage1_lora_config={"enabled": False},
+            student_init_mode="standalone_release",
+            stage0_merged_into_student_base=bool(
+                source.metadata.get("stage0_merged_into_student_base", False)
+            ),
+        )
+    else:
+        loader = load_stage0_merged_wan_core if full else load_stage0_merged_backbone
+        backbone = loader(_build_stage1_loader_config(cfg, source), device=device, dtype=dtype)
     student_lora_adapter_name = getattr(backbone, "student_lora_adapter_name", None)
-    load_lora_state_dict(
-        backbone.core.dit,
-        load_safetensors(str(source.checkpoint_dir / "stage1_lora.safetensors"), device="cpu"),
-        strict=True,
-        adapter_name=student_lora_adapter_name,
-    )
-    if merge_student_lora_for_inference:
+    if full and not released:
+        backbone.core.dit.load_state_dict(
+            load_safetensors(str(source.checkpoint_dir / "student_dit.safetensors"), device="cpu"),
+            strict=True,
+        )
+    elif not released:
+        load_lora_state_dict(
+            backbone.core.dit,
+            load_safetensors(str(source.checkpoint_dir / "stage1_lora.safetensors"), device="cpu"),
+            strict=True,
+            adapter_name=student_lora_adapter_name,
+        )
+    if merge_student_lora and not full and not released:
         merged = merge_lora_adapters(
             backbone.core.dit,
             adapter_name=student_lora_adapter_name,
@@ -447,7 +476,9 @@ def load_frozen_stage1_student(
         stage0_checkpoint_dir=getattr(backbone, "checkpoint_dir", None),
         stage0_trainer_state=getattr(backbone, "trainer_state", None),
         stage0_lora_config=dict(getattr(backbone, "stage0_lora_config", {}) or {}),
-        stage1_lora_config=dict(getattr(backbone, "stage1_lora_config", {}) or {}),
+        stage1_lora_config={"enabled": False}
+        if full
+        else dict(getattr(backbone, "stage1_lora_config", {}) or {}),
         student_init_mode=str(
             getattr(backbone, "student_init_mode", STAGE1_STUDENT_INIT_STAGE0_MERGED)
         ),
@@ -463,7 +494,7 @@ def load_frozen_stage1_student(
         expected_student_hidden_dim=source.expected_student_hidden_dim,
         latent_shape=source.latent_shape,
         readout_layer_idx=source.readout_layer_idx,
-        student_lora_merged_for_inference=bool(merge_student_lora_for_inference),
+        student_lora_merged=bool(released or (merge_student_lora and not full)),
     )
 
 
@@ -476,6 +507,27 @@ def extract_current_only_student_tokens(
     context: torch.Tensor,
     context_mask: torch.Tensor | None,
 ) -> tuple[torch.Tensor, dict[str, Any]]:
+    """Extract one frame of detached visual tokens at the configured readout layer.
+
+    Args:
+        student: Frozen encoder and expected token/hidden dimensions.
+        first_frame_latents: Current VAE latents (B, C, 1, h, w), on the
+            encoder's device/dtype; C is 48 for 5B or 16 for 14B.
+        i2v_condition_latents: Official 14B conditioning (B, 16, L, h, w).
+            Only its first frame is consumed; required for the 14B I2V path.
+        context: Text embeddings (B, 128, 4096) in the encoder's device/dtype.
+        context_mask: Boolean attended-position mask (B, 128), or None when
+            the entire fixed-length text context is attended.
+
+    Returns:
+        Detached tokens (B, N, D) and patch-grid metadata. N is exactly one
+        frame's token count; D is 3072 for 5B or 5120 for 14B. No future video
+        is generated, and no encoder gradient is retained.
+
+    Raises:
+        ValueError: If latent/conditioning/token geometry disagrees with metadata.
+        RuntimeError: If the first-frame causal attention mode is not active.
+    """
     if not isinstance(first_frame_latents, torch.Tensor) or first_frame_latents.ndim != 5:
         raise ValueError(
             f"`first_frame_latents` must be 5D [B,C,1,H,W], got {tuple(getattr(first_frame_latents, 'shape', ()))}."
@@ -505,7 +557,7 @@ def extract_current_only_student_tokens(
         )
     lora_context = (
         nullcontext()
-        if bool(getattr(student, "student_lora_merged_for_inference", False))
+        if bool(getattr(student, "student_lora_merged", False))
         or getattr(student, "student_lora_adapter_name", None) is None
         else _lora_enabled(student.core.dit, student.student_lora_adapter_name)
     )

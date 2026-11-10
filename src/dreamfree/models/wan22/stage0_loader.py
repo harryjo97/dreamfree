@@ -73,7 +73,9 @@ def _json_load(path: Path) -> dict[str, Any]:
         payload = json.load(f)
     if not isinstance(payload, dict):
         raise ValueError(f"Expected JSON object in {path}, got {type(payload)}.")
-    return payload
+    from dreamfree.config_names import normalize_checkpoint_metadata
+
+    return normalize_checkpoint_metadata(payload)
 
 
 def _video_model_family(cfg: Any) -> str:
@@ -709,10 +711,10 @@ def load_stage0_merged_backbone(
     stage1_lora_config = normalize_lora_config(
         {
             "enabled": True,
-            "rank": int(getattr(cfg, "stage1_lora_rank")),
-            "alpha": float(getattr(cfg, "stage1_lora_alpha")),
-            "dropout": float(getattr(cfg, "stage1_lora_dropout")),
-            "target_modules": str(getattr(cfg, "stage1_lora_target_modules")),
+            "rank": int(getattr(cfg, "lora_rank")),
+            "alpha": float(getattr(cfg, "lora_alpha")),
+            "dropout": float(getattr(cfg, "lora_dropout")),
+            "target_modules": str(getattr(cfg, "lora_target_modules")),
         }
     )
     if student_init_mode == STAGE1_STUDENT_INIT_STAGE0_MERGED:

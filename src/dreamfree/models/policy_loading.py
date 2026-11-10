@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import re
-import time
 from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +14,6 @@ from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 import torch
-from PIL import Image
 
 from dreamfree.data.lerobot.processors.robot import DreamFreeProcessor
 from dreamfree.data.text_cache import validate_text_cache
@@ -51,8 +49,6 @@ WAN22_A14B_FAMILY = "wan22_i2v_a14b"
 WAN22_A14B_MODEL_ID = "Wan-AI/Wan2.2-I2V-A14B"
 WAN22_5B_MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B"
 WAN22_A14B_I2V_MODE = "first_image_mask_condition"
-ROBOTWIN_IMAGE_MOSAIC_WIDTH = 320
-ROBOTWIN_IMAGE_MOSAIC_HEIGHT = 384
 
 
 def _load_deployment_safetensors(
@@ -70,7 +66,9 @@ def _json_load(path: Path) -> dict[str, Any]:
         payload = json.load(f)
     if not isinstance(payload, dict):
         raise ValueError(f"Expected JSON object in {path}, got {type(payload)}.")
-    return payload
+    from dreamfree.config_names import normalize_checkpoint_metadata
+
+    return normalize_checkpoint_metadata(payload)
 
 
 def _is_none_like(value: Any) -> bool:
@@ -114,8 +112,9 @@ def _require_existing_file(path: Path, *, label: str) -> Path:
 
 
 def _stage1_required_student_files_for_metadata(metadata: dict[str, Any]) -> tuple[str, ...]:
-    str(metadata.get("checkpoint_type", "")).strip()
-    return ("trainer_state.json", "stage1_lora.safetensors")
+    from dreamfree.models.student import _stage1_required_student_files_for_metadata as required
+
+    return required(metadata)
 
 
 def stage1_required_student_files_for_metadata(metadata: dict[str, Any]) -> tuple[str, ...]:
@@ -123,9 +122,9 @@ def stage1_required_student_files_for_metadata(metadata: dict[str, Any]) -> tupl
 
 
 def _stage1_student_view_metadata(metadata):
-    if metadata.get("checkpoint_type") != STAGE1_CHECKPOINT_TYPE:
-        raise ValueError("Expected a DreamFree stage 1 checkpoint.")
-    return metadata
+    from dreamfree.models.student import _stage1_student_view_metadata as validate
+
+    return validate(metadata)
 
 
 def _normalize_mixed_precision(mixed_precision: str) -> str:
@@ -147,7 +146,8 @@ def _mixed_precision_to_model_dtype(mixed_precision: str) -> torch.dtype:
 
 
 def _metadata_video_family(metadata: dict[str, Any], *, label: str) -> str:
-    metadata = _stage1_student_view_metadata(metadata)
+    if metadata.get("checkpoint_type") in STAGE1_SUPPORTED_CHECKPOINT_TYPES:
+        metadata = _stage1_student_view_metadata(metadata)
     config = _require_dict(metadata.get("config"), label=f"{label} metadata.config")
     model_contract = metadata.get("model_contract")
     family = None
@@ -568,6 +568,20 @@ def _load_stage1_student_core_with_text(
     load_vae: bool = True,
     distributed_checkpoint_broadcast: bool = True,
 ) -> Wan22Core:
+    if "release" in metadata:
+        from dreamfree.models.release import load_release_student
+
+        if stage1_lora_state_path is not None:
+            raise ValueError("A standalone student release cannot load a LoRA override.")
+        return load_release_student(
+            stage1_checkpoint_path,
+            metadata,
+            device=device,
+            dtype=dtype,
+            load_text_encoder=load_text_encoder,
+            load_vae=load_vae,
+            distributed_checkpoint_broadcast=distributed_checkpoint_broadcast,
+        )
     metadata = _stage1_student_view_metadata(metadata)
     cfg = _build_stage1_loader_cfg_from_metadata(metadata)
     student_init_mode = (
@@ -605,6 +619,24 @@ def _load_stage1_student_core_with_text(
     stage1_lora_config = _require_dict(
         metadata.get("stage1_lora_config"), label="Stage 1 metadata.stage1_lora_config"
     )
+    if metadata.get("config", {}).get("student_train_mode", "lora") == "full":
+        if stage1_lora_state_path is not None:
+            raise ValueError("A full Stage 1 student cannot load a LoRA override.")
+        path = _require_existing_file(
+            stage1_checkpoint_path / "student_dit.safetensors", label="full student checkpoint"
+        )
+        state = _load_deployment_safetensors(
+            path, device="cpu", distributed_checkpoint_broadcast=distributed_checkpoint_broadcast
+        )
+        bundle.core.dit.load_state_dict(state, strict=True)
+        bundle.core.student_lora_adapter_name = None
+        if load_text_encoder and (
+            bundle.core.text_encoder is None or bundle.core.tokenizer is None
+        ):
+            raise ValueError("DreamFree eval requires a Wan text encoder and tokenizer.")
+        bundle.core.requires_grad_(False)
+        bundle.core.eval()
+        return bundle.core
     logger.info("Injecting Stage 1 student LoRA adapters for deployment.")
     injected = inject_lora_adapters(
         bundle.core.dit, stage1_lora_config, adapter_name=student_adapter_name
@@ -632,30 +664,6 @@ def _load_stage1_student_core_with_text(
     bundle.core.requires_grad_(False)
     bundle.core.eval()
     return bundle.core
-
-
-def _resize_rgb(image: np.ndarray, size_wh: tuple[int, int]) -> np.ndarray:
-    pil_image = Image.fromarray(image.astype(np.uint8), mode="RGB")
-    resized = pil_image.resize(size_wh, resample=Image.BILINEAR)
-    return np.asarray(resized, dtype=np.uint8)
-
-
-def build_robotwin_image_mosaic(observation_data: Dict[str, Any]) -> np.ndarray:
-    required_cameras = ("head_camera", "left_camera", "right_camera")
-    missing = [camera for camera in required_cameras if camera not in observation_data]
-    if missing:
-        raise KeyError(f"RobotWin image mosaic is missing required cameras: {missing}.")
-    head = _resize_rgb(observation_data["head_camera"]["rgb"], (320, 256))
-    left = _resize_rgb(observation_data["left_camera"]["rgb"], (160, 128))
-    right = _resize_rgb(observation_data["right_camera"]["rgb"], (160, 128))
-    bottom = np.concatenate([left, right], axis=1)
-    image = np.concatenate([head, bottom], axis=0)
-    expected_shape = (ROBOTWIN_IMAGE_MOSAIC_HEIGHT, ROBOTWIN_IMAGE_MOSAIC_WIDTH, 3)
-    if image.shape != expected_shape or image.dtype != np.uint8:
-        raise RuntimeError(
-            f"RobotWin image mosaic contract mismatch: expected uint8 {expected_shape}, got dtype={image.dtype} shape={image.shape}."
-        )
-    return np.ascontiguousarray(image)
 
 
 def _normalize_state_with_processor(
@@ -699,18 +707,9 @@ def _denormalize_action_with_processor(
     return denorm.numpy()
 
 
-def _build_robotwin_image_tensor(
-    observation: Dict[str, Any], *, device: torch.device, dtype: torch.dtype
-) -> torch.Tensor:
-    image = build_robotwin_image_mosaic(observation["observation"])
-    image_tensor = (
-        torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device=device, dtype=dtype)
-    )
-    image_tensor = image_tensor * (2.0 / 255.0) - 1.0
-    return image_tensor
+class ActionChunkPolicy:
+    """Common action queue, episode state, and timing for benchmark policies."""
 
-
-class RobotWinPolicyBase:
     def __init__(
         self,
         *,
@@ -734,10 +733,6 @@ class RobotWinPolicyBase:
         self.step_count = 0
         self._timing_rollout = {"infer_s": 0.0, "sim_s": 0.0}
 
-    @staticmethod
-    def build_eval_video_frame(observation_data: Dict[str, Any]) -> np.ndarray:
-        return build_robotwin_image_mosaic(observation_data)
-
     def _enqueue_action_chunk(self, action_chunk: np.ndarray) -> None:
         n_exec = min(self.replan_steps, int(action_chunk.shape[0]))
         for idx in range(n_exec):
@@ -749,23 +744,6 @@ class RobotWinPolicyBase:
     def record_issued_action(self, action: np.ndarray) -> None:
         """Optional policy hook invoked after an action command is issued."""
         return None
-
-    def step(self, task_env, observation: Optional[Dict[str, Any]]) -> None:
-        if not self.pending_actions:
-            if observation is None:
-                raise ValueError("Observation is required when the action queue is empty.")
-            instruction = task_env.get_instruction()
-            self._fill_action_queue(observation=observation, instruction=instruction)
-        if not self.pending_actions:
-            logger.warning("No action generated; skip current eval step.")
-            return
-        action = self.pending_actions.popleft()
-        sim_t0 = time.perf_counter() if self.timing_enabled else 0.0
-        task_env.take_action(action, action_type="qpos")
-        self.record_issued_action(action)
-        if self.timing_enabled:
-            self._timing_rollout["sim_s"] += time.perf_counter() - sim_t0
-        self.step_count += 1
 
     def reset_timing_rollout(self) -> None:
         self._timing_rollout["infer_s"] = 0.0

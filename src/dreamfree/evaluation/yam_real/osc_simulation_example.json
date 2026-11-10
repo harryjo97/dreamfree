@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "controller": {
+    "kp": [
+      100.0,
+      100.0,
+      100.0,
+      60.0,
+      60.0,
+      60.0
+    ],
+    "kd": [
+      20.0,
+      20.0,
+      20.0,
+      16.0,
+      16.0,
+      16.0
+    ],
+    "torque_limit": [
+      12.0,
+      12.0,
+      12.0,
+      3.0,
+      3.0,
+      3.0,
+      0.6
+    ],
+    "torque_rate": [
+      300.0,
+      300.0,
+      300.0,
+      80.0,
+      80.0,
+      80.0,
+      10.0
+    ],
+    "joint_lower": [
+      -2.767,
+      -0.15,
+      -0.15,
+      -1.72,
+      -1.72,
+      -2.24
+    ],
+    "joint_upper": [
+      3.28,
+      3.8,
+      3.28,
+      1.72,
+      1.72,
+      2.24
+    ],
+    "joint_margin": 0.05,
+    "joint_speed_limit": 2.0,
+    "stopping_acceleration": 5.0,
+    "position_step": 0.01,
+    "rotation_step": 0.08,
+    "target_linear_speed": 0.15,
+    "target_angular_speed": 1.0,
+    "gripper_speed": 1.0,
+    "gripper_margin": 0.05,
+    "max_position_error": 0.08,
+    "max_orientation_error": 0.6,
+    "gripper_kp": 2.0,
+    "gripper_kd": 0.1,
+    "task_length_scale": 0.15,
+    "inertia_damping": 0.01,
+    "singularity_threshold": 0.04,
+    "rate_hz": 100.0,
+    "feedback_timeout": 0.03,
+    "target_timeout": 3.0,
+    "startup_timeout": 30.0,
+    "max_period": 0.04,
+    "max_consecutive_misses": 3,
+    "saturation_timeout": 0.5,
+    "can_timeout": 0.0015
+  },
+  "hardware": {
+    "gains_and_limits_validated": false,
+    "external_estop_verified": false,
+    "motor_watchdog_verified": false,
+    "watchdog_timeout_s": null,
+    "station_model_verified": false
+  },
+  "arms": {
+    "left": {
+      "gripper_type": "linear_4310",
+      "gripper_limits": [
+        0.0,
+        -6.57
+      ],
+      "motor_offsets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "motor_directions": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "base_quaternion_wxyz": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "payload_kg": 0.0,
+      "calibration_verified": false
+    },
+    "right": {
+      "gripper_type": "linear_4310",
+      "gripper_limits": [
+        0.0,
+        -6.57
+      ],
+      "motor_offsets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "motor_directions": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "base_quaternion_wxyz": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "payload_kg": 0.0,
+      "calibration_verified": false
+    }
+  }
+}

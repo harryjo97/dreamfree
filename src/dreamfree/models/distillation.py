@@ -198,17 +198,20 @@ def sample_stage1_student_timestep(
     raise ValueError(f"Unsupported Stage 1 student sigma policy: {policy!r}.")
 
 
-def build_stage1_cached_inputs(
+def prepare_distillation_batch(
     core: Any, sample: dict[str, Any], tiled: bool = False
 ) -> dict[str, Any]:
-    """Validate Stage 1 batch inputs and return frozen VAE latents.
+    """Prepare live video or cached latents for the teacher and student paths.
 
     Args:
         core: Wan video core that owns the VAE, DiT, scheduler, device, and dtype.
         sample: Collated dataset batch with cached `context` and
             `context_mask`, plus exactly one of `input_latents` or `video`.
-            Cached `input_latents` must have shape `[B, C, T, H, W]`; live
-            `video` must have shape `[B, 3, T, H, W]`.
+            Cached `input_latents` have shape (B, C, L, h, w); live `video`
+            has shape (B, 3, T, H, W). A cached 14B batch also needs official
+            I2V latents matching input_latents. context_mask=True means an
+            attended position; dataset readers supply zeroed text padding with
+            a full-length attention mask, preserving the training convention.
         tiled: Whether to use tiled VAE encoding.
 
     Returns:
@@ -419,7 +422,20 @@ def teacher_state_prediction_loss(
     tokens_per_frame: int,
     projector_input_tokens: int,
 ) -> tuple[torch.Tensor, dict[str, ScalarMetric], dict[str, int]]:
-    """Compute DreamFree Stage 1 teacher-state loss with REPA-style cosine distance."""
+    """Compare projected student tokens with detached, normalized teacher tokens.
+
+    Args:
+        student_prediction: Projector output (B, S, D) for the selected token scope.
+        teacher_target: Matching teacher features (B, S, D); detached internally.
+        tokens_per_frame: Number of spatial patch tokens in one latent frame.
+        projector_input_tokens: Actual first-frame token count, which must match
+            tokens_per_frame even when the output spans multiple future frames.
+
+    Returns:
+        Scalar normalized cosine-distance loss, detached logging metrics, and
+        token-count metadata. This is one term of the Stage 1 objective; the
+        caller separately adds video flow matching.
+    """
     if student_prediction.ndim != 3:
         raise ValueError(
             f"`student_prediction` must be 3D [B,S,D], got {tuple(student_prediction.shape)}."
@@ -479,6 +495,8 @@ class DistillationModel(torch.nn.Module):
         backbone: Stage0MergedBackbone,
         projector: FirstFrameToTeacherStateProjector,
         cfg: Stage1Config,
+        *,
+        teacher_core=None,
     ):
         """Attach Stage 1 teacher, student, and projector modules.
 
@@ -492,6 +510,7 @@ class DistillationModel(torch.nn.Module):
         """
         super().__init__()
         self.core = backbone.core
+        self.teacher_core = teacher_core
         self.projector = projector
         self.cfg = cfg
         self.stage0_checkpoint_dir = str(backbone.checkpoint_dir)
@@ -508,7 +527,7 @@ class DistillationModel(torch.nn.Module):
             stage0_metadata_path=Path(backbone.checkpoint_dir) / "trainer_state.json",
         )
         self.teacher = FutureStateTeacher(
-            self.core,
+            self.core if teacher_core is None else teacher_core,
             layer_idx=int(cfg.teacher_layer_k),
             hook_point=str(cfg.teacher_hook_point),
             target_type=str(cfg.teacher_target_type),
@@ -532,7 +551,14 @@ class DistillationModel(torch.nn.Module):
             lora_adapter_name=self.student_lora_adapter_name,
         )
         self.last_shape_metadata: dict[str, Any] = {}
+        self._fsdp2_storage_dtype = None
+        self._student_state_keys = tuple(self.core.dit.state_dict())
+        self._projector_state_keys = tuple(self.projector.state_dict())
         self.set_stage1_train_mode()
+
+    @property
+    def dtype(self):
+        return self._fsdp2_storage_dtype or next(self.core.dit.parameters()).dtype
 
     def set_stage1_train_mode(self) -> None:
         """Restore the intended Stage 1 train/eval modes after evaluation.
@@ -553,17 +579,21 @@ class DistillationModel(torch.nn.Module):
         if self.core.text_encoder is not None:
             self.core.text_encoder.eval()
         self.projector.train()
+        if self.teacher_core is not None:
+            self.teacher_core.eval()
 
     def training_loss(self, sample: dict[str, Any]) -> tuple[torch.Tensor, dict[str, ScalarMetric]]:
         """Compute total Stage 1 training loss for one collated batch.
 
         Args:
-            sample: Collated dataset batch with `video` `[B, 3, T, H, W]`,
-                cached `context` `[B, 128, 4096]`, cached `context_mask`
-                `[B, 128]`, and optional metadata fields.
+            sample: Collated live video (B, 3, T, H, W) or cached latents
+                (B, C, L, h, w), text context (B, 128, 4096), its attended-
+                position mask (B, 128), and optional metadata. See
+                prepare_distillation_batch for the 14B conditioning contract.
 
         Returns:
-            Tuple of scalar total loss and metrics for logging.
+            Scalar video flow loss plus weighted representation-distillation
+            loss, and logging metrics. Teacher targets remain detached.
 
         Raises:
             ValueError: If teacher and student token layouts are inconsistent.
@@ -577,7 +607,7 @@ class DistillationModel(torch.nn.Module):
                 raise ValueError(
                     "Stage 1 cached-latent training requires `input_latents` in every batch. Precompute a full video latent cache or set use_cached_latents=false."
                 )
-        inputs = build_stage1_cached_inputs(self.core, sample)
+        inputs = prepare_distillation_batch(self.core, sample)
         z_clean = inputs["input_latents"]
         if bool(self.cfg.use_cached_latents):
             _validate_stage1_input_latents_contract(z_clean, self.cfg)
@@ -593,6 +623,15 @@ class DistillationModel(torch.nn.Module):
             dtype=z_clean.dtype,
         )
         target = self.core.train_scheduler.training_target(z_clean, eps_fm, timestep_fm)
+        teacher = None
+        if self.teacher_core is not None:
+            # Finish the frozen teacher before retaining the student's autograd graph.
+            teacher = self.teacher(
+                z_clean=z_clean,
+                context=context,
+                context_mask=dit_context_mask,
+                i2v_condition_latents=inputs["i2v_condition_latents"],
+            )
         student = self.student(
             z_clean=z_clean,
             context=context,
@@ -617,12 +656,13 @@ class DistillationModel(torch.nn.Module):
             loss_video = (loss_per_sample * sample_weight).mean()
         else:
             loss_video = loss_per_sample.mean()
-        teacher = self.teacher(
-            z_clean=z_clean,
-            context=context,
-            context_mask=dit_context_mask,
-            i2v_condition_latents=inputs["i2v_condition_latents"],
-        )
+        if teacher is None:
+            teacher = self.teacher(
+                z_clean=z_clean,
+                context=context,
+                context_mask=dit_context_mask,
+                i2v_condition_latents=inputs["i2v_condition_latents"],
+            )
         y_tgt_full = teacher["tokens"]
         z_world = student["z_world"]
         teacher_meta = teacher["meta"]
@@ -652,7 +692,7 @@ class DistillationModel(torch.nn.Module):
             tokens_per_frame=int(teacher_meta["tokens_per_frame"]),
             projector_input_tokens=int(z_world.shape[1]),
         )
-        loss_total = loss_video + float(self.cfg.lambda_teacher_state) * loss_teacher_state
+        loss_total = loss_video + float(self.cfg.distillation_loss_weight) * loss_teacher_state
         sigma = teacher["sigma"].detach().float()
         metrics = {
             "loss_video_fm": loss_video.detach().float(),
@@ -695,7 +735,7 @@ class DistillationModel(torch.nn.Module):
             "projector_output_tokens": int(shape_meta["projector_output_tokens"]),
             "D_student": int(z_world.shape[-1]),
             "D_teacher": int(y_tgt.shape[-1]),
-            "teacher_state_loss": str(self.cfg.teacher_state_loss),
+            "distillation_loss": str(self.cfg.distillation_loss),
         }
         return (loss_total, metrics)
 
@@ -713,8 +753,15 @@ class DistillationModel(torch.nn.Module):
 
 def _compile_stage1_dit_blocks(wrapper: DistillationModel) -> int:
     """Compile shared teacher/student DiT blocks without replacing modules."""
-    return compile_dit_blocks(wrapper.core.dit, label="Stage 1")
+    count = compile_dit_blocks(wrapper.core.dit, label="Stage 1 student")
+    if wrapper.teacher_core is not None:
+        count += compile_dit_blocks(wrapper.teacher_core.dit, label="Stage 1 teacher")
+    return count
 
 
 def stage1_student_uses_wan_shift_weight(sigma_config: Stage1StudentSigmaConfig) -> bool:
     return sigma_config.sigma_policy == STUDENT_SIGMA_POLICY_WAN_SHIFT_FULL
+
+
+# Compatibility name for callers predating the live/cached batch API rename.
+build_stage1_cached_inputs = prepare_distillation_batch

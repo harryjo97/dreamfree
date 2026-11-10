@@ -12,6 +12,9 @@ from typing import Union, get_args, get_origin, get_type_hints
 
 from omegaconf import OmegaConf
 
+from dreamfree.config_names import TRAINING_RENAMES
+from dreamfree.data import yam
+
 MODEL_DEFAULTS = {
     "5b": {
         "model_id": "Wan-AI/Wan2.2-TI2V-5B",
@@ -55,7 +58,7 @@ DATA_DEFAULTS = {
         width=320,
         action_dim=14,
         proprio_dim=14,
-        concat_multi_camera="robotwin",
+        camera_layout="robotwin",
         camera_keys="observation.images.cam_high,observation.images.cam_left_wrist,observation.images.cam_right_wrist",
     ),
     "libero": dict(
@@ -63,7 +66,7 @@ DATA_DEFAULTS = {
         width=448,
         action_dim=7,
         proprio_dim=8,
-        concat_multi_camera="horizontal",
+        camera_layout="horizontal",
         camera_keys="observation.images.image,observation.images.wrist_image",
     ),
     "robocasa": dict(
@@ -71,7 +74,7 @@ DATA_DEFAULTS = {
         width=352,
         action_dim=7,
         proprio_dim=9,
-        concat_multi_camera="robocasa_dreamzero_352",
+        camera_layout="robocasa_dreamzero_352",
         camera_keys="observation.images.agentview_left,observation.images.agentview_right,observation.images.wrist",
     ),
     "droid": dict(
@@ -80,10 +83,23 @@ DATA_DEFAULTS = {
         action_dim=8,
         proprio_dim=8,
         action_horizon=32,
-        concat_multi_camera="droid_grid",
+        camera_layout="droid_grid",
         camera_keys="observation.images.exterior_image_1_left,observation.images.exterior_image_2_left,observation.images.wrist_image_left",
     ),
 }
+
+for name in yam.DATASET_NAMES:
+    preset = yam.PRESETS[name]
+    DATA_DEFAULTS[name] = dict(
+        height=432,
+        width=384,
+        action_dim=preset.action_dim,
+        proprio_dim=14,
+        action_horizon=32,
+        camera_layout=preset.layout,
+        camera_keys=",".join(yam.CAMERA_KEYS),
+        prompt_policy="task_text",
+    )
 
 
 def config_type(stage: int):
@@ -114,7 +130,22 @@ def _check_type(value, expected, key):
 
 
 def load_config(stage: int, path: str | Path, overrides=()):
-    """Resolve model/dataset defaults, YAML, then explicit key=value overrides."""
+    """Parse a stage config without opening datasets, caches, or checkpoints.
+
+    Args:
+        stage: Training stage, 0, 1, or 2.
+        path: YAML/JSON experiment file with model and dataset selectors.
+        overrides: Ordered key=value overrides; the last value for a key wins.
+
+    Returns:
+        Stage dataclass after shared, model, and dataset defaults, then explicit
+        file/CLI values. Checkpoint and dataset-dependent resolution happens
+        later in the training loop; see docs/configuration.md.
+
+    Raises:
+        ValueError: If selectors, field names, or experiment invariants conflict.
+        TypeError: If a value does not match its declared configuration type.
+    """
     document = OmegaConf.load(path)
     merged = OmegaConf.merge(document, OmegaConf.from_dotlist(list(overrides)))
     supplied = OmegaConf.to_container(merged, resolve=True)
@@ -129,11 +160,28 @@ def load_config(stage: int, path: str | Path, overrides=()):
         raise ValueError(f"dataset must be one of {tuple(DATA_DEFAULTS)}; got {dataset!r}.")
     if mode not in ("live", "cached"):
         raise ValueError("data_mode must be 'live' or 'cached'.")
+    renames = {**TRAINING_RENAMES, "context_len": "tokenizer_max_len"}
+    old_fields = renames.keys() & supplied.keys()
+    if old_fields:
+        raise ValueError(
+            "Renamed training configuration fields: "
+            + "; ".join(f"{key}: use {renames[key]}" for key in sorted(old_fields))
+        )
     cls = config_type(stage)
     hints = get_type_hints(cls)
     unknown = supplied.keys() - hints.keys()
     if unknown:
         raise ValueError(f"Unknown configuration fields: {sorted(unknown)}")
+    for key in (
+        "model_id",
+        "video_model_family",
+        "video_hidden_dim",
+        "video_latent_dim",
+        "video_dit_input_dim",
+        "video_dit_output_dim",
+    ):
+        if key in supplied and supplied[key] != MODEL_DEFAULTS[model][key]:
+            raise ValueError(f"{key} conflicts with model={model!r}.")
     defaults = dict(
         model_base_path="./assets/models",
         dataset_name=dataset,
@@ -146,7 +194,7 @@ def load_config(stage: int, path: str | Path, overrides=()):
         stage0_lora_checkpoint="",
         stage0_eval_reference=None,
         stage0_expected_global_step=None,
-        pretrained_norm_stats=None,
+        dataset_stats_path=None,
         action_dit_pretrained_path="",
         output_dir=f"./outputs/stage{stage}/{dataset}_{model}",
         final_export_dir=f"./outputs/stage{stage}/{dataset}_{model}/merged",
@@ -166,15 +214,14 @@ def load_config(stage: int, path: str | Path, overrides=()):
     if "use_cached_latents" in supplied and supplied["use_cached_latents"] != (mode == "cached"):
         raise ValueError("use_cached_latents conflicts with data_mode.")
     for key, value in list(values.items()):
-        if value is None and key in ("pretrained_norm_stats", "stage0_eval_reference"):
+        if value is None and key in ("dataset_stats_path", "stage0_eval_reference"):
             continue
         values[key] = _check_type(value, hints[key], key)
+    if not values["text_embedding_cache_dir"].strip():
+        values["text_embedding_cache_dir"] = f"./assets/text/{dataset}_{model}"
     required = {
         "strict_dataset_errors": True,
         "require_text_cache": True,
-        "use_shared_teacher_student_dit": True,
-        "teacher_target_token_scope": "all",
-        "student_train_mode": "frozen",
         "student_init_mode": "shared_stage0_merged_dit_with_stage1_lora",
         "readout_type": "latent_query_cross_attention",
         "readout_active_query_budgets": None,
@@ -183,14 +230,43 @@ def load_config(stage: int, path: str | Path, overrides=()):
     for key, expected in required.items():
         if key in values and values[key] != expected:
             raise ValueError(f"{key} must be {expected!r} for the standard training workflow.")
-    return cls(**values)
+    if stage == 1:
+        mode = values["student_train_mode"]
+        if mode not in ("lora", "full"):
+            raise ValueError("Stage 1 student_train_mode must be 'lora' or 'full'.")
+        if values["use_shared_teacher_student_dit"] != (mode == "lora"):
+            raise ValueError(
+                "Full Stage 1 requires a separate frozen teacher; LoRA shares the DiT."
+            )
+    if stage == 2 and values["student_train_mode"] != "frozen":
+        raise ValueError("Stage 2 requires student_train_mode='frozen'.")
+    cfg = cls(**values)
+    if dataset in yam.DATASET_NAMES:
+        yam.validate_config(cfg, stage=stage)
+    if stage == 2:
+        from dreamfree.models.action_history import validate_config
+
+        validate_config(cfg)
+    return cfg
 
 
 def train_main(stage: int, argv=None):
+    """Inspect parsed configuration or dispatch to the selected training loop.
+
+    Args:
+        stage: Training stage, 0, 1, or 2.
+        argv: CLI arguments, or None to read the process command line.
+    """
     parser = argparse.ArgumentParser(description=f"Train DreamFree stage {stage}.")
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
-    parser.add_argument("--print-config", action="store_true")
+    parser.add_argument("--config", required=True, help="Stage YAML/JSON experiment file.")
+    parser.add_argument(
+        "--set", action="append", default=[], metavar="KEY=VALUE", help="Override a config value."
+    )
+    parser.add_argument(
+        "--print-config",
+        action="store_true",
+        help="Print parsed defaults/overrides and exit before checkpoint or dataset resolution.",
+    )
     args = parser.parse_args(argv)
     cfg = load_config(stage, args.config, args.set)
     if args.print_config:
@@ -198,12 +274,10 @@ def train_main(stage: int, argv=None):
         return
     if not cfg.dataset_dirs:
         raise ValueError("dataset_dirs must name the LeRobot dataset root(s).")
-    if not cfg.text_embedding_cache_dir:
-        raise ValueError("text_embedding_cache_dir is required; run text preparation first.")
     if stage == 1 and (not cfg.stage0_lora_checkpoint):
         raise ValueError("stage0_lora_checkpoint is required for stage 1.")
-    if stage == 2 and (not cfg.stage1_checkpoint):
-        raise ValueError("stage1_checkpoint is required for stage 2.")
+    if stage == 2 and not (cfg.stage1_checkpoint or cfg.init_checkpoint):
+        raise ValueError("stage1_checkpoint or init_checkpoint is required for stage 2.")
     module = importlib.import_module(f"dreamfree.training.stage{stage}.loop")
     run = getattr(
         module, "run_dreamfree_stage2_training" if stage == 2 else f"run_stage{stage}_training"

@@ -11,6 +11,7 @@ import torch
 from accelerate import Accelerator
 
 from dreamfree.data.contracts import _normalize_latent_frame0_mode
+from dreamfree.data.prepare_text import ensure_training_text_cache
 from dreamfree.data.sampling import build_dataloader
 from dreamfree.data.video import (
     DatasetRoots,
@@ -85,6 +86,8 @@ def run_stage0_training(cfg: Stage0Config) -> None:
         accelerator.process_index,
         mixed_precision,
     )
+    if not cfg.prepare_only:
+        ensure_training_text_cache(cfg, accelerator)
     torch.manual_seed(int(cfg.seed) + accelerator.process_index)
     np.random.seed(int(cfg.seed) + accelerator.process_index)
     random.seed(int(cfg.seed) + accelerator.process_index)
@@ -96,13 +99,11 @@ def run_stage0_training(cfg: Stage0Config) -> None:
                 {
                     "dataset_format": dataset_format,
                     "task_roots": [],
-                    "stage0_latent_cache_dir": str(cfg.stage0_latent_cache_dir),
+                    "video_latent_cache_dir": str(cfg.video_latent_cache_dir),
                 },
             )
         accelerator.wait_for_everyone()
-        logger.info(
-            "Using cached-latent-only Stage 0 dataset from %s.", cfg.stage0_latent_cache_dir
-        )
+        logger.info("Using cached-latent-only Stage 0 dataset from %s.", cfg.video_latent_cache_dir)
     else:
         preparer = DatasetRoots(cfg)
         if accelerator.is_main_process:
@@ -119,6 +120,7 @@ def run_stage0_training(cfg: Stage0Config) -> None:
         if accelerator.is_main_process:
             _json_dump(Path(cfg.output_dir) / "stage0_config.json", asdict(cfg))
         logger.info("prepare_only=true; exiting after dataset preparation.")
+        accelerator.end_training()
         return
     train_dataset = build_stage0_dataset(task_roots, cfg=cfg, split="train")
     val_dataset = None
@@ -217,6 +219,7 @@ def run_stage0_training(cfg: Stage0Config) -> None:
     wandb_run = _init_wandb(accelerator, cfg)
     if int(cfg.max_steps) <= 0:
         logger.info("max_steps<=0; built datasets/model and exiting without training.")
+        accelerator.end_training()
         return
     train_iter = iter(train_loader)
     val_iter = iter(val_loader) if val_loader is not None else None
@@ -395,3 +398,4 @@ def run_stage0_training(cfg: Stage0Config) -> None:
     if wandb_run is not None:
         wandb_run.finish()
     logger.info("Stage 0 training finished at step=%d", global_step)
+    accelerator.end_training()

@@ -10,18 +10,18 @@ import torch
 from safetensors import safe_open
 from torch.utils.data import Dataset
 
+from dreamfree.data import yam
 from dreamfree.data.lerobot.cached_latent_dataset import (
     stage2_latent_cache_expected_contract,
     validate_stage2_latent_cache_header_file,
     validate_stage2_latent_tensor_contract,
 )
-from dreamfree.data.robocasa_visual import required_robocasa_visual_preprocess_id
 from dreamfree.data.text_cache import load_text_context as _load_stage1_text_cache
 from dreamfree.data.video import (
     Stage0Episode,
     _is_droid_cache_meta,
-    _parse_stage0_latent_cache_dirs,
     _parse_stage0_text_cache_dirs,
+    _parse_video_latent_cache_dirs,
     _stage0_cache_dir_can_use_flat_episodes,
     _stage0_cached_or_overlay_latent_header,
     _stage0_root_cache_name,
@@ -61,33 +61,27 @@ def _stage1_latent_cache_expected_contract(cfg: Stage1Config) -> dict[str, Any]:
         num_frames=_stage1_raw_video_frames(cfg),
         action_video_freq_ratio=int(getattr(cfg, "raw_frame_stride")),
     )
-    visual_preprocess_id = required_robocasa_visual_preprocess_id(
-        dataset_name=getattr(cfg, "dataset_name", ""),
-        concat_multi_camera=getattr(cfg, "concat_multi_camera", ""),
-        height=getattr(cfg, "height", -1),
-        width=getattr(cfg, "width", -1),
-        video_model_family=getattr(cfg, "video_model_family", ""),
-    )
-    if visual_preprocess_id is not None:
-        contract["visual_preprocess_id"] = visual_preprocess_id
-        contract["concat_layout"] = str(getattr(cfg, "concat_multi_camera"))
+    if str(cfg.camera_layout).startswith("robocasa_dreamzero_"):
+        contract["concat_layout"] = str(getattr(cfg, "camera_layout"))
         if contract["video_model_family"] == "wan22_i2v_a14b":
             contract["require_i2v_first_latent_equality"] = True
+    if cfg.dataset_name in yam.DATASET_NAMES:
+        contract["abc_contract"] = yam.PRESETS[cfg.dataset_name].contract
     return contract
 
 
 def resolve_stage1_latent_cache_dirs(cfg: Stage1Config) -> list[Path]:
-    raw = _optional_path_identity(getattr(cfg, "stage2_latent_cache_dir", None))
+    raw = _optional_path_identity(getattr(cfg, "video_latent_cache_dir", None))
     if raw is None:
-        raise ValueError("Cached video mode requires stage2_latent_cache_dir.")
-    return [Path(path).expanduser() for path in _parse_stage0_latent_cache_dirs(raw)]
+        raise ValueError("Cached video mode requires video_latent_cache_dir.")
+    return [Path(path).expanduser() for path in _parse_video_latent_cache_dirs(raw)]
 
 
 def resolve_stage1_latent_cache_dir(cfg: Stage1Config) -> Path:
     cache_dirs = resolve_stage1_latent_cache_dirs(cfg)
     if len(cache_dirs) != 1:
         raise ValueError(
-            "Stage 1 stage2_latent_cache_dir contains multiple cache roots; use resolve_stage1_latent_cache_dirs instead."
+            "Stage 1 video_latent_cache_dir contains multiple cache roots; use resolve_stage1_latent_cache_dirs instead."
         )
     return cache_dirs[0]
 
@@ -97,8 +91,8 @@ def _validate_stage1_latent_cache_config(cfg):
         return
     paths = resolve_stage1_latent_cache_dirs(cfg)
     if not paths:
-        raise ValueError("Cached video mode requires stage2_latent_cache_dir.")
-    cfg.stage2_latent_cache_dir = ",".join(str(path) for path in paths)
+        raise ValueError("Cached video mode requires video_latent_cache_dir.")
+    cfg.video_latent_cache_dir = ",".join(str(path) for path in paths)
     for path in paths:
         if not path.is_dir():
             raise FileNotFoundError(f"Video latent cache directory does not exist: {path}")
@@ -145,7 +139,7 @@ class CachedStage1LatentDataset(Dataset):
     ):
         super().__init__()
         self.cache_dirs = [
-            Path(path).expanduser().resolve() for path in _parse_stage0_latent_cache_dirs(cache_dir)
+            Path(path).expanduser().resolve() for path in _parse_video_latent_cache_dirs(cache_dir)
         ]
         if not self.cache_dirs:
             raise ValueError(
@@ -231,12 +225,16 @@ class CachedStage1LatentDataset(Dataset):
                     f"{root_name}/episode_{int(episode.episode_index):06d} candidates={candidate_dirs}"
                 )
                 continue
+            if self.source_dataset.cfg.dataset_name in yam.DATASET_NAMES:
+                yam.validate_cache(path, episode.root, self.source_dataset.cfg.dataset_name)
             if first_existing is None:
                 first_existing = path
             (meta, latent_shape, _) = _stage0_cached_or_overlay_latent_header(path)
             if _is_droid_cache_meta(meta):
                 _validate_droid_dreamzero_latent_cache_metadata(path, stage_label="Stage 1")
-            elif self.expected_cache_contract.get("visual_preprocess_id") is not None:
+            elif str(self.expected_cache_contract.get("concat_layout", "")).startswith(
+                "robocasa_dreamzero_"
+            ):
                 validate_stage2_latent_cache_header_file(
                     path, expected=self.expected_cache_contract, stage_label="Stage 1"
                 )

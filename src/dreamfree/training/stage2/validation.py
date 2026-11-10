@@ -10,10 +10,13 @@ from accelerate import Accelerator
 from safetensors import safe_open
 from safetensors.torch import load_file as load_safetensors
 
-from dreamfree.data.lerobot.cached_latent_dataset import stage2_text_cache_suffix_for_family
-from dreamfree.data.robocasa_visual import required_robocasa_visual_preprocess_id
-from dreamfree.data.stage2 import (
-    DROID_GRID_CONCAT_MULTI_CAMERA,
+from dreamfree.data import yam
+from dreamfree.data.action_cache import (
+    _validate_cache_payload,
+    _validate_stage2_latent_cache_contract,
+    validate_droid_stage2_latent_cache_metadata,
+)
+from dreamfree.data.action_processing import (
     DROID_STAGE2_ACTION_DIM,
     DROID_STAGE2_DATASET_ALIASES,
     DROID_STAGE2_HEIGHT,
@@ -25,13 +28,14 @@ from dreamfree.data.stage2 import (
     ROBOTWIN_CONCAT_MULTI_CAMERA,
     _parse_dataset_dirs,
     _stage2_robocasa_layout_spec,
-    _validate_cache_payload,
-    _validate_stage2_latent_cache_contract,
     resolve_stage2_action_horizon,
-    validate_droid_stage2_latent_cache_metadata,
 )
+from dreamfree.data.lerobot.cached_latent_dataset import stage2_text_cache_suffix_for_family
+from dreamfree.data.stage2 import DROID_GRID_CONCAT_MULTI_CAMERA
 from dreamfree.models.action_config import _parse_optional_int, _parse_optional_int_list
+from dreamfree.models.action_history import validate_config as validate_action_history_config
 from dreamfree.models.action_training import ActionTrainingModel, _readout_dim
+from dreamfree.models.release import read_checkpoint_metadata
 from dreamfree.models.student import stage1_student_source_model_contract
 from dreamfree.models.student_readout import (
     normalize_readout_input_projection_mlp_ratio,
@@ -52,16 +56,6 @@ def _normalize_dreamfree_stage2_dataset_name(value: Any) -> str:
 def _is_dreamfree_stage2_robocasa_dataset(value: Any) -> bool:
     name = _normalize_dreamfree_stage2_dataset_name(value)
     return name in ROBOCASA_STAGE2_DATASET_ALIASES or name in ROBOCASA_STAGE2_448_DATASET_ALIASES
-
-
-def _dreamfree_stage2_visual_preprocess_id(cfg: Any) -> str | None:
-    return required_robocasa_visual_preprocess_id(
-        dataset_name=getattr(cfg, "dataset_name", ""),
-        concat_multi_camera=getattr(cfg, "concat_multi_camera", ""),
-        height=getattr(cfg, "height", -1),
-        width=getattr(cfg, "width", -1),
-        video_model_family=getattr(cfg, "video_model_family", ""),
-    )
 
 
 def _is_dreamfree_stage2_libero_dataset(value: Any) -> bool:
@@ -193,7 +187,7 @@ def _validate_dreamfree_stage2_robocasa_latent_cache_metadata(
         meta = dict(handle.metadata() or {})
     expected = {
         "dataset_kind": "robocasa",
-        "concat_layout": str(cfg.concat_multi_camera).strip().lower(),
+        "concat_layout": str(cfg.camera_layout).strip().lower(),
         "action_dim": str(int(cfg.action_dim)),
         "state_dim": str(int(cfg.proprio_dim)),
     }
@@ -203,7 +197,7 @@ def _validate_dreamfree_stage2_robocasa_latent_cache_metadata(
         if str(meta.get(key)) != value
     ]
     norm_stats_value = (
-        cfg.pretrained_norm_stats if expected_norm_stats is None else expected_norm_stats
+        cfg.dataset_stats_path if expected_norm_stats is None else expected_norm_stats
     )
     norm_stats_text = "" if norm_stats_value is None else str(norm_stats_value).strip()
     cached_stats = meta.get("normalizer_stats_path")
@@ -225,6 +219,7 @@ def _validate_dreamfree_stage2_robocasa_latent_cache_metadata(
 
 
 def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
+    validate_action_history_config(cfg)
     _normalize_readout_budget_config(cfg)
     if int(cfg.eval_batches) <= 0:
         raise ValueError(f"eval_batches must be positive, got {cfg.eval_batches}.")
@@ -248,35 +243,28 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
     for dataset_dir in dataset_dirs:
         if not Path(dataset_dir).exists():
             raise FileNotFoundError(f"DreamFree Stage 2 dataset directory not found: {dataset_dir}")
-    norm_stats_text = (
-        "" if cfg.pretrained_norm_stats is None else str(cfg.pretrained_norm_stats).strip()
-    )
+    norm_stats_text = "" if cfg.dataset_stats_path is None else str(cfg.dataset_stats_path).strip()
     if not (is_libero or is_droid) or norm_stats_text not in {"", "null", "None"}:
         if not norm_stats_text:
             raise ValueError(
-                "DreamFree Stage 2 requires pretrained_norm_stats for RobotWin/RoboCasa datasets."
+                "DreamFree Stage 2 requires dataset_stats_path for RobotWin/RoboCasa datasets."
             )
         if not Path(norm_stats_text).exists():
             raise FileNotFoundError(
-                f"DreamFree Stage 2 required path `pretrained_norm_stats` not found: {norm_stats_text}"
+                f"DreamFree Stage 2 required path `dataset_stats_path` not found: {norm_stats_text}"
             )
     text_cache_dirs = _parse_path_list(
         cfg.text_embedding_cache_dir, label="DreamFree Stage 2 text_embedding_cache_dir"
     )
-    missing_text_cache_dirs = [str(path) for path in text_cache_dirs if not path.exists()]
-    if missing_text_cache_dirs:
-        raise FileNotFoundError(
-            f"DreamFree Stage 2 required text_embedding_cache_dir path(s) not found: {missing_text_cache_dirs}"
-        )
     if bool(cfg.use_cached_latents):
         if not is_libero and len(dataset_dirs) != 1:
             raise ValueError(
                 f"Cached DreamFree Stage 2 latents currently support a single dataset_dir; got {len(dataset_dirs)} entries."
             )
-        if not cfg.stage2_latent_cache_dir:
-            raise ValueError("use_cached_latents=true requires stage2_latent_cache_dir to be set.")
+        if not cfg.video_latent_cache_dir:
+            raise ValueError("use_cached_latents=true requires video_latent_cache_dir to be set.")
         latent_cache_dirs = _parse_path_list(
-            cfg.stage2_latent_cache_dir, label="DreamFree Stage 2 stage2_latent_cache_dir"
+            cfg.video_latent_cache_dir, label="DreamFree Stage 2 video_latent_cache_dir"
         )
         missing_latent_cache_dirs = [str(path) for path in latent_cache_dirs if not path.exists()]
         if missing_latent_cache_dirs:
@@ -301,12 +289,16 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
             validate_droid_stage2_latent_cache_metadata(
                 first_episode, cfg, stage_label="DreamFree Stage 2"
             )
-    concat_mode = str(cfg.concat_multi_camera).strip().lower()
-    if is_libero:
+    concat_mode = str(cfg.camera_layout).strip().lower()
+    if dataset_name in yam.DATASET_NAMES:
+        yam.validate_config(cfg, stage=2)
+        yam.checkpoint_contract(cfg)
+        yam.validate_stage1_source(
+            read_checkpoint_metadata(Path(cfg.stage1_checkpoint), stage="stage1")
+        )
+    elif is_libero:
         if concat_mode != HORIZONTAL_CONCAT_MULTI_CAMERA:
-            raise ValueError(
-                "DreamFree Stage 2 LIBERO-family requires concat_multi_camera='horizontal'."
-            )
+            raise ValueError("DreamFree Stage 2 LIBERO-family requires camera_layout='horizontal'.")
         if (int(cfg.height), int(cfg.width), int(cfg.action_dim), int(cfg.proprio_dim)) != (
             224,
             448,
@@ -318,10 +310,10 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
             )
     elif is_robocasa:
         layout = _stage2_robocasa_layout_spec(dataset_name)
-        expected_concat = str(layout["concat_multi_camera"])
+        expected_concat = str(layout["camera_layout"])
         if concat_mode != expected_concat:
             raise ValueError(
-                f"DreamFree Stage 2 RoboCasa requires concat_multi_camera='{expected_concat}'."
+                f"DreamFree Stage 2 RoboCasa requires camera_layout='{expected_concat}'."
             )
         expected = (
             int(layout["height"]),
@@ -337,7 +329,7 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
     elif is_droid:
         if concat_mode != DROID_GRID_CONCAT_MULTI_CAMERA:
             raise ValueError(
-                f"DreamFree Stage 2 DROID requires concat_multi_camera='{DROID_GRID_CONCAT_MULTI_CAMERA}'."
+                f"DreamFree Stage 2 DROID requires camera_layout='{DROID_GRID_CONCAT_MULTI_CAMERA}'."
             )
         expected = (
             DROID_STAGE2_HEIGHT,
@@ -352,9 +344,9 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
             )
     elif concat_mode != ROBOTWIN_CONCAT_MULTI_CAMERA:
         raise ValueError(
-            f"DreamFree Stage 2 RobotWin requires concat_multi_camera='{ROBOTWIN_CONCAT_MULTI_CAMERA}', got {cfg.concat_multi_camera!r}."
+            f"DreamFree Stage 2 RobotWin requires camera_layout='{ROBOTWIN_CONCAT_MULTI_CAMERA}', got {cfg.camera_layout!r}."
         )
-    if int(cfg.context_len) != 128 or int(cfg.text_dim) != 4096:
+    if int(cfg.tokenizer_max_len) != 128 or int(cfg.text_dim) != 4096:
         raise ValueError(
             "DreamFree Stage 2 cached text contract requires context_len=128 and text_dim=4096."
         )
@@ -496,11 +488,10 @@ def validate_dreamfree_stage2_config(cfg: Stage2Config) -> None:
     for cache_dir in text_cache_dirs:
         first_cache = next(cache_dir.glob(f"*.t5_len128.{text_cache_suffix}.pt"), None)
         if first_cache is None:
-            raise FileNotFoundError(
-                f"No DreamFree Stage 2 {text_cache_suffix} text cache files found under {cache_dir}"
-            )
+            # Missing entries are prepared before dataset construction on rank 0.
+            continue
         _validate_cache_payload(
-            first_cache, context_len=int(cfg.context_len), text_dim=int(cfg.text_dim)
+            first_cache, context_len=int(cfg.tokenizer_max_len), text_dim=int(cfg.text_dim)
         )
 
 
@@ -521,9 +512,7 @@ def evaluate_dreamfree_stage2_batches(
             if batch_idx >= max_batches:
                 break
             (loss, loss_dict) = model(sample)
-            mean_loss = (
-                accelerator.gather_for_metrics(loss.detach().float().reshape(1)).mean().item()
-            )
+            mean_loss = accelerator.gather(loss.detach().float().reshape(1)).mean().item()
             losses.append(float(mean_loss))
             for key, value in loss_dict.items():
                 tensor = torch.tensor(
@@ -531,7 +520,7 @@ def evaluate_dreamfree_stage2_batches(
                 ).reshape(1)
                 metric_key = f"val_{key}"
                 metric_sums[metric_key] = metric_sums.get(metric_key, 0.0) + float(
-                    accelerator.gather_for_metrics(tensor).mean().item()
+                    accelerator.gather(tensor).mean().item()
                 )
     finally:
         if was_training:

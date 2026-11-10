@@ -430,7 +430,7 @@ class Wan22Core(torch.nn.Module):
         num_inference_steps: int = 20,
         sigma_shift: Optional[float] = None,
         seed: Optional[int] = None,
-        rand_device: str = "cpu",
+        noise_device: str = "cpu",
         tiled: bool = False,
         context: Optional[torch.Tensor] = None,
         context_mask: Optional[torch.Tensor] = None,
@@ -460,11 +460,11 @@ class Wan22Core(torch.nn.Module):
         latent_t = (num_frames - 1) // vae.temporal_downsample_factor + 1
         latent_h = height // vae.upsampling_factor
         latent_w = width // vae.upsampling_factor
-        generator = None if seed is None else torch.Generator(device=rand_device).manual_seed(seed)
+        generator = None if seed is None else torch.Generator(device=noise_device).manual_seed(seed)
         latents = torch.randn(
             (1, vae.model.z_dim, latent_t, latent_h, latent_w),
             generator=generator,
-            device=rand_device,
+            device=noise_device,
             dtype=torch.float32,
         ).to(device=self.device, dtype=self.torch_dtype)
         input_image = input_image.to(device=self.device, dtype=self.torch_dtype)

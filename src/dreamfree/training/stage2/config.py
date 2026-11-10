@@ -12,31 +12,39 @@ from dreamfree.training.stage2.constants import READOUT_TYPE_LATENT_QUERY
 
 @dataclass
 class Stage2Config:
+    """Stage 2 schema; use load_config for selected model/dataset defaults.
+
+    The training loop resolves release initialization and dataset-based budgets
+    after parsing. The visual encoder stays frozen. See docs/configuration.md.
+    """
+
     model_base_path: str = "./assets/models"
     output_dir: str = "./assets/models"
     mixed_precision: str = "bf16"
     seed: int = 42
     save_optimizer_state: bool = True
     resume: str | None = None
+    init_checkpoint: str | None = None
     stage1_checkpoint: str | None = None
     dataset_name: str = "robotwin"
     dataset_dirs: str = "./assets"
-    pretrained_norm_stats: str = "./assets"
+    dataset_stats_path: str = "./assets"
     text_embedding_cache_dir: str = "./assets"
-    context_len: int = 128
     num_frames: int = 33
     action_video_freq_ratio: int = 4
     action_horizon: int | None = None
+    action_history_horizon: int = 0
+    action_history_dropout: float | None = None
     height: int = 384
     width: int = 320
     action_dim: int = 14
     proprio_dim: int = 14
     strict_dataset_errors: bool = True
-    val_set_proportion: float = 0.01
+    val_fraction: float = 0.01
     global_sample_stride: int = 1
-    concat_multi_camera: str = ROBOTWIN_CONCAT_MULTI_CAMERA
+    camera_layout: str = ROBOTWIN_CONCAT_MULTI_CAMERA
     use_cached_latents: bool = False
-    stage2_latent_cache_dir: str | None = None
+    video_latent_cache_dir: str | None = None
     diagnostic_timing: bool = False
     profile_steps: int = 0
     profile_start_step: int = 5
@@ -51,7 +59,7 @@ class Stage2Config:
     video_dit_output_dim: int = 48
     redirect_common_files: bool = True
     pretrained_load_broadcast: bool = True
-    merge_student_lora_for_inference: bool = True
+    merge_student_lora: bool = True
     student_readout_layer: int | None = None
     student_hook_point: str | None = None
     student_video_attention_mask_mode: str = "first_frame_causal"

@@ -48,6 +48,17 @@ def test_invalid_configuration_fails(override):
             load_config(2, ROOT / "configs/stage2_14b.yaml", [override])
 
 
+@pytest.mark.parametrize("stage", [0, 1, 2])
+@pytest.mark.parametrize("old_field", ["stage0_latent_cache_dir", "stage2_latent_cache_dir"])
+def test_old_video_cache_options_report_replacement(stage, old_field):
+    with pytest.raises(ValueError, match="use video_latent_cache_dir"):
+        load_config(
+            stage,
+            ROOT / f"configs/stage{stage}_14b.yaml",
+            [f"{old_field}=/cache", "video_latent_cache_dir=/other_cache"],
+        )
+
+
 def test_text_cache_rejects_wrong_format_mask_and_nonfinite_values():
     good = {
         "format": "dreamfree_text_v1",

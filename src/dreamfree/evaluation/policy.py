@@ -3,45 +3,107 @@
 from __future__ import annotations
 
 import importlib
-import json
 import os
 from pathlib import Path
 
 import torch
 from safetensors.torch import load_file
 
+from dreamfree.config_names import INFERENCE_RENAMES, rename_fields
+from dreamfree.data.action_processing import _build_stage2_processor
 from dreamfree.data.lerobot.utils.normalizer import load_dataset_stats_from_json
-from dreamfree.data.stage2 import _build_stage2_processor
-from dreamfree.evaluation.robotwin import policy as robotwin
+from dreamfree.evaluation import checkpoints
+from dreamfree.evaluation.options import parse_bool, parse_mode
 from dreamfree.models import policy_loading
 from dreamfree.models.conditioning import TeacherStateActionConditioner
+from dreamfree.models.release import read_checkpoint_metadata, resolve_policy_checkpoint
 from dreamfree.models.wan22.action_dit import ActionDiT
 
 
+def validate_options(options):
+    """Reject unsupported settings before loading weights.
+
+    Args:
+        options: Policy paths and inference options from an evaluator or server.
+
+    Returns:
+        Options with legacy field names translated and booleans parsed.
+    """
+    options = rename_fields(options, INFERENCE_RENAMES)
+    for key, default in (
+        ("compile_dit", True),
+        ("tiled", False),
+        ("load_text_encoder", True),
+        ("timing_enabled", False),
+        ("flip_images", True),
+        ("binarize_gripper", True),
+    ):
+        options[key] = parse_bool(options.get(key, default))
+    if not options["compile_dit"]:
+        raise ValueError("Optimized inference requires compile_dit=true.")
+    if options["tiled"]:
+        raise ValueError("Optimized inference requires tiled=false.")
+    mode = parse_mode(options.get("inference_optimization", "true"), "inference_optimization")
+    if mode == "false":
+        raise ValueError("Optimized inference requires inference_optimization=true or auto.")
+    for key, expected in (("sigma_shift", None), ("text_cfg_scale", 1.0), ("negative_prompt", "")):
+        if options.get(key, expected) != expected:
+            raise ValueError(
+                f"Optimized inference does not support overriding {key}={options[key]!r}."
+            )
+    if options.get("image_preprocess_source") not in (None, "auto", "libero"):
+        raise ValueError("LIBERO image_preprocess_source must be auto or libero.")
+    if "eval_num_inference_steps" in options:
+        raise ValueError("Use num_inference_steps instead of eval_num_inference_steps.")
+    if "policy_runtime" in options:
+        raise ValueError(
+            "Remove policy_runtime; DreamFree selects its optimized runtime automatically."
+        )
+    return options
+
+
 def build_policy(environment: str, options: dict):
-    """Build only the optimized runtime; options contain paths and inference settings."""
-    if environment not in ("libero", "robocasa", "robotwin", "droid"):
+    """Assemble checkpoint components and the selected optimized benchmark adapter.
+
+    Args:
+        environment: libero, robocasa, droid, or yam.
+        options: Checkpoint/model/statistics paths and inference settings.
+
+    Returns:
+        Benchmark policy with its existing compilation and warmup behavior.
+        DROID uses its server-compatible builder; other adapters share the
+        checkpoint, encoder, readout, action-model, and conditioner assembly.
+    """
+    if environment not in ("libero", "robocasa", "droid", "yam"):
         raise ValueError(f"Unknown evaluation environment: {environment!r}.")
     if environment == "droid":
-        from dreamfree.evaluation.droid.deploy_policy_optimized import build_policy_from_args
+        from dreamfree.evaluation.droid_sim.deploy_policy_optimized import build_policy_from_args
 
         return build_policy_from_args(options)
-    checkpoint = Path(options["ckpt_setting"]).expanduser().resolve()
-    metadata = json.loads((checkpoint / "trainer_state.json").read_text())
-    if metadata.get("checkpoint_type") != "dreamfree_stage2":
+    options = validate_options(options)
+    if environment == "robocasa" and not options["flip_images"]:
+        raise ValueError("RoboCasa evaluation requires flip_images=true to match training pixels.")
+    checkpoint = resolve_policy_checkpoint(options["checkpoint_path"])
+    metadata = read_checkpoint_metadata(checkpoint, stage="stage2")
+    allowed_types = {"dreamfree_stage2"}
+    if environment == "yam":
+        from dreamfree.models.action_history import CHECKPOINT_TYPE
+
+        allowed_types.add(CHECKPOINT_TYPE)
+    if metadata.get("checkpoint_type") not in allowed_types:
         raise ValueError("Expected a DreamFree stage 2 checkpoint.")
     module = importlib.import_module(f"dreamfree.evaluation.{environment}.policy")
     module._validate_dreamfree_stage2_for_eval(checkpoint, metadata)
     source_path = Path(metadata["source_stage1_checkpoint"])
-    source = json.loads((source_path / "trainer_state.json").read_text())
-    robotwin._validate_dreamfree_source_stage1_matches_stage2(
+    source = read_checkpoint_metadata(source_path, stage="stage1")
+    checkpoints.validate_stage1_stage2_lineage(
         stage1_checkpoint_path=source_path, stage1_metadata=source, stage2_metadata=metadata
     )
-    if environment == "robocasa":
-        module._validate_robocasa_visual_lineage(stage1_metadata=source, stage2_metadata=metadata)
-    cfg = robotwin._build_dreamfree_stage2_cfg_from_metadata(metadata)
+    cfg = checkpoints.stage2_config_from_metadata(metadata)
     os.environ["DREAMFREE_MODEL_BASE_PATH"] = str(
-        options.get("model_base_path") or cfg.model_base_path
+        options.get("model_base_path")
+        or os.environ.get("DREAMFREE_MODEL_BASE_PATH")
+        or cfg.model_base_path
     )
     device = str(options.get("device", "cuda"))
     if not device.startswith("cuda") or not torch.cuda.is_available():
@@ -53,9 +115,9 @@ def build_policy(environment: str, options: dict):
         metadata=source,
         device=device,
         dtype=torch.bfloat16,
-        load_text_encoder=bool(options.get("load_text_encoder", True)),
+        load_text_encoder=options["load_text_encoder"],
     )
-    readout = robotwin._build_readout_for_eval(
+    readout = checkpoints.load_readout(
         metadata=metadata,
         checkpoint_path=checkpoint,
         device=torch.device(device),
@@ -98,7 +160,12 @@ def build_policy(environment: str, options: dict):
     conditioner.load_proprio_state_dict(
         load_file(str(checkpoint / "proprio_encoder.safetensors")), strict=True
     )
-    stats_path = Path(options["dataset_stats_path"]).expanduser().resolve()
+    stats_value = options.get("dataset_stats_path")
+    if not stats_value and "release" in metadata:
+        stats_value = metadata["dataset"]["dataset_stats_path"]
+    if not stats_value:
+        raise ValueError("dataset_stats_path is required for a native training checkpoint.")
+    stats_path = Path(stats_value).expanduser().resolve()
     processor = _build_stage2_processor(cfg).eval()
     stats = (
         module._load_dataset_stats_for_libero_eval(stats_path)
@@ -118,12 +185,14 @@ def build_policy(environment: str, options: dict):
         stage2_checkpoint_path=checkpoint,
         dataset_stats_path=stats_path,
         action_horizon=int(metadata["action"]["action_horizon"]),
-        replan_steps=int(options.get("replan_steps", 8)),
+        replan_steps=int(
+            options.get("replan_steps", {"libero": 10, "robocasa": 32}.get(environment, 8))
+        ),
         num_inference_steps=int(options.get("num_inference_steps", 10)),
         seed=options.get("seed", 42),
-        rand_device=options.get("rand_device", "cpu"),
+        noise_device=options.get("noise_device", "cpu"),
         tiled=False,
-        timing_enabled=bool(options.get("timing_enabled", False)),
+        timing_enabled=options["timing_enabled"],
         text_embedding_cache_dir=options.get("text_embedding_cache_dir"),
         compile_dit=False,
         compile_dit_block_counts={},
@@ -139,12 +208,9 @@ def build_policy(environment: str, options: dict):
 
         policy = OptimizedNativeRoboCasaPolicy(
             **common,
-            flip_images=True,
+            flip_images=options["flip_images"],
             robocasa_image_size=module._robocasa_image_size_from_metadata(
                 metadata, label="stage 2"
-            ),
-            robocasa_visual_preprocess_id=module._robocasa_visual_preprocess_id_from_metadata(
-                metadata
             ),
         )
         policy.optimization_contract = resolve_options(
@@ -154,7 +220,6 @@ def build_policy(environment: str, options: dict):
     else:
         from dreamfree.evaluation.optimized import (
             OptimizedLiberoPolicy,
-            OptimizedRobotWinPolicy,
             optimize_policy,
         )
 
@@ -164,12 +229,14 @@ def build_policy(environment: str, options: dict):
                 **common,
                 input_h=height,
                 input_w=width,
-                concat_multi_camera="horizontal",
-                binarize_gripper=True,
+                camera_layout="horizontal",
+                binarize_gripper=options["binarize_gripper"],
                 action_data_source="libero",
                 image_preprocess_source="libero",
             )
         else:
-            policy = OptimizedRobotWinPolicy(**common)
+            from dreamfree.evaluation.yam.policy import YamPolicy
+
+            policy = YamPolicy(**common)
         optimize_policy(policy)
     return policy

@@ -9,7 +9,7 @@ from accelerate import Accelerator
 from safetensors.torch import load_file as load_safetensors
 from safetensors.torch import save_file as save_safetensors
 
-from dreamfree.data.contracts import _normalize_latent_frame0_mode, _stage0_visual_preprocess_id
+from dreamfree.data.contracts import _normalize_latent_frame0_mode
 from dreamfree.data.video import _stage0_14b_frame0_mode_from_state
 from dreamfree.models.adaptation import VideoAdaptationModel, _stage0_sigma_metadata
 from dreamfree.models.lora import collect_lora_state_dict, load_lora_state_dict
@@ -49,7 +49,7 @@ def _prune_stage0_checkpoints(cfg: Stage0Config) -> list[Path]:
     for _, path in stale:
         shutil.rmtree(path)
         removed.append(path)
-        logger.info("[ckpt] removed old Stage 0 checkpoint %s", path)
+        logger.info("[checkpoint] removed old Stage 0 checkpoint %s", path)
     return removed
 
 
@@ -89,11 +89,6 @@ def save_lora_checkpoint(
                 "checkpoint_type": "dreamfree_stage0",
                 "checkpoint_version": 1,
                 "global_step": int(global_step),
-                **(
-                    {"visual_preprocess_id": _stage0_visual_preprocess_id(cfg)}
-                    if _stage0_visual_preprocess_id(cfg) is not None
-                    else {}
-                ),
                 "lora_config": getattr(unwrapped, "lora_config", {}),
                 "video_model_family": str(cfg.video_model_family),
                 "dit_role": str(cfg.dit_role),
@@ -111,7 +106,7 @@ def save_lora_checkpoint(
                 checkpoint_dir / "optim.pt",
                 {"optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict()},
             )
-        logger.info("[ckpt] saved LoRA checkpoint to %s", checkpoint_dir)
+        logger.info("[checkpoint] saved LoRA checkpoint to %s", checkpoint_dir)
         _prune_stage0_checkpoints(cfg)
     accelerator.wait_for_everyone()
     return checkpoint_dir if accelerator.is_main_process else None
@@ -162,14 +157,6 @@ def load_lora_checkpoint_if_requested(*, model: VideoAdaptationModel, cfg: Stage
             if saved_mode != expected_mode:
                 raise ValueError(
                     f"14B Stage 0 resume requires matching latent_frame0_mode: checkpoint={saved_mode!r} current={expected_mode!r}."
-                )
-            expected_visual_id = _stage0_visual_preprocess_id(cfg)
-            if (
-                expected_visual_id is not None
-                and state.get("visual_preprocess_id") != expected_visual_id
-            ):
-                raise ValueError(
-                    f"Direct-bilinear RoboCasa Stage 0 resume requires visual_preprocess_id={expected_visual_id!r}, got {state.get('visual_preprocess_id')!r} in {state_path}. Start a fresh Stage 0 run from the rebuilt cache."
                 )
     else:
         raise FileNotFoundError(f"Resume checkpoint metadata is missing: {state_path}")

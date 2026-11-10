@@ -2,33 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+from dreamfree.evaluation.options import parse_bool, parse_mode
 from dreamfree.evaluation.robocasa._eval_common import DREAMFREE_STAGE2_CHECKPOINT_TYPE
 
-FEATURES = ("action_cuda_graph", "vae_first_frame_only", "stage1_cuda_graph")
+FEATURES = ("action_cuda_graph", "vae_first_frame_only", "encoder_cuda_graph")
 SUPPORTED_TYPES = frozenset((DREAMFREE_STAGE2_CHECKPOINT_TYPE,))
 SUPPORTED_5B_TYPES = frozenset((DREAMFREE_STAGE2_CHECKPOINT_TYPE,))
-
-
-def _parse_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y"}:
-            return True
-        if lowered in {"0", "false", "no", "n"}:
-            return False
-    raise ValueError(f"Cannot parse bool value: {value}")
-
-
-def parse_mode(value: Any, name: str) -> str:
-    if isinstance(value, bool):
-        value = str(value).lower()
-    if value not in ("auto", "true", "false"):
-        raise ValueError(f"{name} must be auto, true, or false, got {value!r}.")
-    return value
 
 
 def resolve_options(
@@ -74,7 +53,7 @@ def resolve_options(
         family_supported
         and str(args.get("device", "cuda")).startswith("cuda")
         and (args.get("mixed_precision", "bf16") == "bf16")
-        and (not _parse_bool(args.get("tiled", False)))
+        and (not parse_bool(args.get("tiled", False)))
         and (dataset.get("video_size") == [352, 352])
         and (dataset.get("context_len") == 128)
         and (action.get("action_dim") == 7)
@@ -142,12 +121,12 @@ def resolve_options(
     if is_5b:
         resolved["vae_first_frame_only"].update(enabled=False, reason="already_single_frame")
         if (
-            requested["stage1_cuda_graph"] == "auto"
-            and resolved["stage1_cuda_graph"]["enabled"]
+            requested["encoder_cuda_graph"] == "auto"
+            and resolved["encoder_cuda_graph"]["enabled"]
             and ("action_cuda_graph" in promoted_features)
             and (not resolved["action_cuda_graph"]["enabled"])
         ):
-            resolved["stage1_cuda_graph"].update(
+            resolved["encoder_cuda_graph"].update(
                 enabled=False, reason="requires_promoted_action_graph"
             )
     return dict(
@@ -157,5 +136,5 @@ def resolve_options(
         reason=reason,
         features=resolved,
         warmup_complete=False,
-        compile_dit_requested=_parse_bool(args.get("compile_dit", False)),
+        compile_dit_requested=parse_bool(args.get("compile_dit", False)),
     )
